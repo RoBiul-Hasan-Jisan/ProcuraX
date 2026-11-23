@@ -1,0 +1,26 @@
+node_modules/
+.next/
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# Firebase service accounts / secrets
+*serviceAccount*.json
+firebase-adminsdk*.json
+
+# Uploaded business documents (never commit)
+backend/uploads/
+
+# Python / ML
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+ml/artifacts/*
+!ml/artifacts/.gitkeep
