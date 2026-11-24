@@ -59,3 +59,24 @@ describe('demo dataset meets the spec and is internally consistent', () => {
     expect(new Set(DEMO_SUPPLIER_USER_LINKS.map((l) => l.supplierCode)).size).toBe(DEMO_SUPPLIER_USER_LINKS.length);
   });
 });
+
+import { DEMO_WAREHOUSES, openingStock } from '../scripts/demoData';
+import { stockStatus } from '../src/domain/inventory';
+
+describe('demo warehouses and opening stock', () => {
+  it('has unique warehouse codes and every category has a home warehouse', () => {
+    const codes = DEMO_WAREHOUSES.map((w) => w.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    DEMO_MATERIALS.forEach((m, i) => expect(codes).toContain(openingStock(m, i).warehouse));
+  });
+  it('is deterministic and positive', () => {
+    DEMO_MATERIALS.forEach((m, i) => {
+      expect(openingStock(m, i)).toEqual(openingStock(m, i));
+      expect(Number(openingStock(m, i).quantity)).toBeGreaterThan(0);
+    });
+  });
+  it('produces every stock status so alerts can be demonstrated', () => {
+    const seen = new Set(DEMO_MATERIALS.map((m, i) => stockStatus(openingStock(m, i).quantity, { safetyStock: m.safety, minimumStock: m.min, reorderPoint: m.reorder })));
+    expect([...seen].sort()).toEqual(['critical', 'low', 'ok', 'reorder']);
+  });
+});

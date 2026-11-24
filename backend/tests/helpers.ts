@@ -1,7 +1,7 @@
 /** A chainable, awaitable stand-in for a Mongoose query: .lean().sort().populate()... all resolve to `value`. */
 export function chain<T>(value: T) {
   const q: any = {
-    lean: () => q, sort: () => q, populate: () => q, skip: () => q, limit: () => q, select: () => q,
+    lean: () => q, sort: () => q, populate: () => q, skip: () => q, limit: () => q, select: () => q, session: () => q,
     then: (res: (v: T) => unknown, rej?: (e: unknown) => unknown) => Promise.resolve(value).then(res, rej),
   };
   return q;

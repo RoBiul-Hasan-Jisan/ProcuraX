@@ -32,10 +32,11 @@ describe("role-based navigation", () => {
   });
 
   it("only enables pages that exist in the current phase", () => {
-    const all = visibleNavigation(canWith(["users:manage", "requisitions:view", "purchase_orders:view"])).flatMap((s) => s.items);
+    const all = visibleNavigation(canWith(["users:manage", "requisitions:view", "purchase_orders:view", "production:manage"])).flatMap((s) => s.items);
     expect(isEnabled(all.find((i) => i.label === "User Management")!)).toBe(true);
     expect(isEnabled(all.find((i) => i.label === "Purchase Requisitions")!)).toBe(true); // Phase 2
-    expect(isEnabled(all.find((i) => i.label === "Purchase Orders")!)).toBe(false); // Phase 3
+    expect(isEnabled(all.find((i) => i.label === "Purchase Orders")!)).toBe(true); // Phase 3
+    expect(isEnabled(all.find((i) => i.label === "Production Planning")!)).toBe(false); // Phase 4
   });
 
   it("gives suppliers their RFQ and profile pages but no internal procurement pages", () => {
