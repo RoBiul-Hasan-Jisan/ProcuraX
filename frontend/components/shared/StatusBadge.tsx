@@ -8,6 +8,9 @@ const TONES: Record<string, string> = {
   submitted: "bg-blue-50 text-blue-700", withdrawn: "bg-slate-100 text-slate-500", not_selected: "bg-slate-100 text-slate-500",
   active: "bg-green-50 text-ok", inactive: "bg-slate-100 text-slate-500", blocked: "bg-red-50 text-danger", verified: "bg-green-50 text-ok",
   pending: "bg-amber-50 text-warn", rejected: "bg-red-50 text-danger",
+  draft: "bg-slate-100 text-slate-700", issued: "bg-blue-50 text-blue-700", partially_received: "bg-amber-50 text-warn", received: "bg-green-50 text-ok",
+  pending_verification: "bg-amber-50 text-warn", disputed: "bg-red-50 text-danger",
+  ok: "bg-green-50 text-ok", reorder: "bg-amber-50 text-warn", low: "bg-orange-50 text-orange-700", critical: "bg-red-50 text-danger",
   Low: "bg-slate-100 text-slate-600", Medium: "bg-blue-50 text-blue-700", High: "bg-orange-50 text-orange-700", Urgent: "bg-red-50 text-danger",
 };
 

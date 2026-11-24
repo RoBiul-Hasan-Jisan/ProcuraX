@@ -49,3 +49,20 @@ export function pct2(amount: string, ratePercent: string): string | null {
   const unit = BigInt(10) ** BigInt(SCALE * 2 + 2 - 2); // 10^8 -> 2dp after the /100
   return fmt2((product + unit / BigInt(2)) / unit);
 }
+
+/** Compares two non-negative decimal strings exactly: -1, 0 or 1. Invalid input compares as 0 (callers validate first). */
+export function cmp(a: string, b: string): number {
+  if (!isDecimal(a) || !isDecimal(b)) return 0;
+  const x = toScaled(a), y = toScaled(b);
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
+/** max(a - b, 0) as a string with up to 4 decimals trimmed, e.g. remaining("100", "40.5") = "59.5". */
+export function remaining(ordered: string, done: string): string {
+  if (!isDecimal(ordered) || !isDecimal(done)) return "0";
+  const d = toScaled(ordered) - toScaled(done);
+  if (d <= BigInt(0)) return "0";
+  const s = d.toString().padStart(SCALE + 1, "0");
+  const out = `${s.slice(0, -SCALE)}.${s.slice(-SCALE)}`.replace(/0+$/, "").replace(/\.$/, "");
+  return out;
+}

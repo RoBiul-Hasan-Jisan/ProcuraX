@@ -17,7 +17,7 @@ export interface NavSection {
   items: NavItem[];
 }
 
-export const CURRENT_PHASE = 2;
+export const CURRENT_PHASE = 3;
 
 export const NAVIGATION: NavSection[] = [
   { label: "Overview", icon: Gauge, items: [{ label: "Overview", href: "/overview", permissions: [], phase: 1 }] },

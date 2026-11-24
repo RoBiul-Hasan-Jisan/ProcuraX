@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -48,6 +48,7 @@ export default function RfqDetailPage() {
   const { data: rfq, loading, error, reload } = useApi<Rfq>(`/rfqs/${id}`);
   const now = useNow();
   const action = useAction();
+  const router = useRouter();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState("");
 
@@ -74,6 +75,9 @@ export default function RfqDetailPage() {
         </>} />
       {action.error && <div className="mb-3"><Notice tone="error">{action.error}</Notice></div>}
       {manager && !bidsOpened && <div className="mb-3"><Notice tone="info">Quotations are sealed until {formatDate(rfq.deadline, true)}, or until you close bidding. Currently {rfq.quotationCount ?? 0} received.</Notice></div>}
+      {rfq.award && manager && can("purchase_orders:manage") && rfq.status === "awarded" && (
+        <div className="mb-3"><Button variant="secondary" disabled={action.pending} onClick={() => void action.run(async () => { const r = await apiFetch<{ id: string }>("/purchase-orders", { method: "POST", body: JSON.stringify({ rfqId: rfq.id }) }); router.push(`/procurement/purchase-orders/${r.data.id}`); })}>Create purchase order (draft)</Button></div>
+      )}
       {rfq.award && <div className="mb-3"><Notice tone="success">Awarded by {rfq.award.awardedByName}{rfq.award.overrodeTopRank ? ` (not the top-ranked quotation: "${rfq.award.justification}")` : ""}.</Notice></div>}
 
       <div className="grid gap-4 lg:grid-cols-3">
