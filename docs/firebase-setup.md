@@ -44,3 +44,13 @@ npm run seed
 Suggested demo emails are listed in `backend/scripts/seed.ts`. Re-running the seed updates records in place and never creates duplicates.
 
 Alternative without the seed: sign in as each person, then use **Settings → User Management** as the administrator to approve them and assign roles.
+
+## Phase 2 demo supplier logins
+
+Create extra Firebase users for supplier accounts and pass their UIDs when seeding:
+
+```bash
+DEMO_UID_SUPPLIER=<uid> DEMO_UID_SUPPLIER_2=<uid> DEMO_UID_SUPPLIER_3=<uid> npm run seed
+```
+
+Each supplier login is linked to a seeded supplier record (SUP-0001, SUP-0002, SUP-0003). Use two of them to confirm one supplier cannot see the other's RFQ quotation. An admin can also link any supplier user to a record in Settings.

@@ -4,12 +4,12 @@
 
 An AI-assisted e-procurement, inventory and MRP platform for steel manufacturing. This is an **independent demo prototype** built on synthetic data. It is not affiliated with any steel manufacturer and uses no confidential or proprietary data or branding.
 
-## Status: Phase 1 (Foundation) complete
+## Status: Phase 2 (Procurement Core) complete
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Monorepo, Express + MongoDB, Firebase auth, RBAC, app shell, dashboard foundation | **Done** |
-| 2 | Materials, suppliers, requisitions, approvals, RFQs, quotations, comparison | Not started |
+| 2 | Materials, suppliers, requisitions, approvals, RFQs, quotations, comparison | **Done** (no live-DB test yet) |
 | 3 | Purchase orders, goods receipt, invoices, warehouses, stock movements | Not started |
 | 4 | Production plans, BOM, MRP engine | Not started |
 | 5 | Supplier scoring, forecasting (Python ML), risk detection, assistant | Not started |
@@ -17,6 +17,23 @@ An AI-assisted e-procurement, inventory and MRP platform for steel manufacturing
 | 7 | Docker deployment, health checks, backup docs | Not started |
 
 Navigation items for later phases are visible (per role) but disabled and tagged with their phase. The overview dashboard shows real database counts only; procurement KPIs are explicitly marked "not available yet" rather than showing placeholder numbers.
+
+### What Phase 2 includes
+
+- **Catalogue**: 10 material categories, materials (SKU, unit, min/safety/reorder levels, preferred suppliers), supplier master with verification and status, history counters and bank details (bank details visible only to `suppliers:bank` holders).
+- **Requisitions**: create/edit/submit/cancel with a state machine (Draft → Submitted → In Approval → Approved → RFQ Created → ...). Exact-decimal totals.
+- **Approvals**: Department Manager → Procurement Manager → Finance Officer (only when total >= threshold, default 1,000,000 BDT, configurable in settings). A department-manager requester skips the department step; nobody can approve their own request. Reject / request-modification supported; full history kept.
+- **RFQs and quotations**: Procurement invites verified, active suppliers only. Suppliers see only RFQs they were invited to and only their own quotation. Quotations are **sealed**: comparable only after the deadline or once the RFQ is closed.
+- **Comparison and award**: side-by-side landed cost and weighted score; adjustable weights. Award is always a manual decision; choosing a lower-ranked quote requires a written justification.
+- **Suppliers' own profile**: a supplier user edits only contact fields and bank info on their own linked record.
+
+#### Formulas and business rules
+
+- **Landed cost** = material + transport + additional charges + tax. Material = sum(quantity x unit price). Tax = taxRate% x (material + transport + additional). Each component is rounded half-up to 2 dp. Browser previews use BigInt decimal helpers that mirror the server; money is stored as Decimal128, never floats.
+- **Score** (default weights): price 30, delivery 25, quality 20, lead time 15, payment 10, normalised to 100. Price/lead-time/payment are relative to the other bids; delivery and quality come from supplier history.
+- **Unproven suppliers**: fewer than 5 completed orders -> neutral history score of 50 and an "unproven" flag. They are never presented as reliable.
+- **Price flag**: a bid more than 20% above the material's average purchase price is flagged.
+- **Concurrency**: no transactions yet. Multi-step actions use atomic conditional `findOneAndUpdate` gates (submit, approval decision, RFQ creation, award) plus unique indexes (one active RFQ per requisition; one quotation per supplier per RFQ). Transactions arrive in Phase 3 with inventory.
 
 ### What Phase 1 includes
 
@@ -57,7 +74,7 @@ cd backend
 DEMO_UID_SYSTEM_ADMIN=<firebase uid> DEMO_UID_PROCUREMENT_MANAGER=<uid> npm run seed
 ```
 
-The seed is idempotent, marks every record `isDemoData`, and skips roles whose `DEMO_UID_<ROLE>` is not set. Phase 1 seeds 5 departments and the demo user profiles. Richer connected data (materials, suppliers, POs, consumption history) arrives with the phases that need it.
+The seed is idempotent, marks every record `isDemoData`, and skips roles whose `DEMO_UID_<ROLE>` is not set. It seeds 5 departments, 10 categories, 36 materials, 10 suppliers (7 proven, 1 unproven with 2 orders, 1 unverified, 1 blocked) and demo user profiles. Supplier-role logins link to supplier records via `DEMO_UID_SUPPLIER` (SUP-0001), `DEMO_UID_SUPPLIER_2` (SUP-0002) and `DEMO_UID_SUPPLIER_3` (SUP-0003). Demo data lives in `backend/scripts/demoData.ts` and is covered by tests.
 
 ## Tests
 
@@ -73,9 +90,11 @@ cd frontend && npm test && npm run typecheck && npm run lint
 - `ml/` Python ML service (scaffold only until Phase 5).
 - Roles: system_admin, procurement_manager, department_manager, inventory_officer, finance_officer, supplier, management.
 
-## Known limitations (Phase 1)
+## Known limitations (through Phase 2)
 
 - Backend tests mock Firebase Admin and the user repository. **Nothing has yet been run against a live MongoDB or a real Firebase project** in this build; verify with the quick start above.
-- Frontend tests cover navigation filtering, route guarding and form validation. The settings page and overview page have no automated tests yet.
+- Backend: 133 tests (domain rules, route permissions/validation, mocked-model services, demo data). Atomic-gate ordering and unique indexes are untested against a real MongoDB; a failure between dependent writes could leave partial state.
+- Frontend: 55 tests (navigation, guards, forms, decimal maths, comparison, approvals). Pages such as settings and overview have little direct coverage.
+- No end-to-end test of supplier isolation against a running server.
 - The Next.js build was verified; the app itself was not exercised in a browser.
 - Express 5, Mongoose 9, TypeScript 7 and TanStack Table 8 are used. Tests transpile with SWC; type-checking is done by `tsc`.
