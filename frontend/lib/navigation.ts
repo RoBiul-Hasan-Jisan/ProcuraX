@@ -17,7 +17,7 @@ export interface NavSection {
   items: NavItem[];
 }
 
-export const CURRENT_PHASE = 1;
+export const CURRENT_PHASE = 2;
 
 export const NAVIGATION: NavSection[] = [
   { label: "Overview", icon: Gauge, items: [{ label: "Overview", href: "/overview", permissions: [], phase: 1 }] },
@@ -56,6 +56,7 @@ export const NAVIGATION: NavSection[] = [
     label: "Suppliers", icon: Truck,
     items: [
       { label: "Supplier Directory", href: "/suppliers", permissions: ["suppliers:view"], phase: 2 },
+      { label: "My Supplier Profile", href: "/supplier-profile", permissions: ["suppliers:self"], phase: 2 },
       { label: "Supplier Evaluation", href: "/suppliers/evaluation", permissions: ["suppliers:evaluate"], phase: 5 },
       { label: "Supplier Performance", href: "/suppliers/performance", permissions: ["suppliers:view"], phase: 5 },
     ],

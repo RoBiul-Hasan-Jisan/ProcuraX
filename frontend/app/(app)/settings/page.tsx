@@ -8,8 +8,10 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { apiFetch } from "@/lib/api/client";
 import { ROLE_OPTIONS, type AccountStatus, type AppUser, type RoleName } from "@/types";
+import type { Department, Supplier } from "@/types/procurement";
+import { useApi } from "@/hooks/useApi";
 
-interface Draft { role: RoleName | ""; status: AccountStatus }
+interface Draft { role: RoleName | ""; status: AccountStatus; departmentId: string; supplierId: string }
 
 const col = createColumnHelper<AppUser>();
 const selectCls = "h-8 rounded-md border border-line bg-white px-2 text-sm";
@@ -44,7 +46,9 @@ export default function SettingsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const draftFor = useCallback((u: AppUser): Draft => drafts[u.id] ?? { role: u.role ?? "", status: u.status }, [drafts]);
+  const departments = useApi<Department[]>("/departments");
+  const suppliers = useApi<Supplier[]>("/suppliers?limit=100");
+  const draftFor = useCallback((u: AppUser): Draft => drafts[u.id] ?? { role: u.role ?? "", status: u.status, departmentId: u.departmentId ?? "", supplierId: u.supplierId ?? "" }, [drafts]);
   const setDraft = (u: AppUser, patch: Partial<Draft>) => setDrafts((d) => ({ ...d, [u.id]: { ...draftFor(u), ...patch } }));
 
   const save = useCallback(async (u: AppUser) => {
@@ -53,7 +57,7 @@ export default function SettingsPage() {
     setNotice(null);
     setError(null);
     try {
-      await apiFetch(`/users/${u.id}`, { method: "PATCH", body: JSON.stringify({ role: d.role || null, status: d.status }) });
+      await apiFetch(`/users/${u.id}`, { method: "PATCH", body: JSON.stringify(u.id === me?.id ? { departmentId: d.departmentId || null } : { role: d.role || null, status: d.status, departmentId: d.departmentId || null, ...(d.role === "supplier" ? { supplierId: d.supplierId || null } : {}) }) });
       setNotice(`Updated ${u.displayName}`);
       await load();
     } catch (e) {
@@ -61,7 +65,7 @@ export default function SettingsPage() {
     } finally {
       setSavingId(null);
     }
-  }, [draftFor, load]);
+  }, [draftFor, load, me?.id]);
 
   const columns = useMemo(() => [
     col.accessor("displayName", { header: "Name", cell: (c) => <span className="font-medium">{c.getValue()}</span> }),
@@ -76,6 +80,26 @@ export default function SettingsPage() {
           {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
       ),
+    }),
+    col.display({
+      id: "department", header: "Department",
+      cell: ({ row }) => (
+        <select aria-label={`Department for ${row.original.displayName}`} className={selectCls} value={draftFor(row.original).departmentId}
+          onChange={(e) => setDraft(row.original, { departmentId: e.target.value })}>
+          <option value="">None</option>
+          {(departments.data ?? []).map((d) => <option key={d._id} value={d._id}>{d.name}</option>)}
+        </select>
+      ),
+    }),
+    col.display({
+      id: "supplier", header: "Supplier record",
+      cell: ({ row }) => draftFor(row.original).role === "supplier" ? (
+        <select aria-label={`Supplier for ${row.original.displayName}`} className={selectCls} value={draftFor(row.original).supplierId}
+          onChange={(e) => setDraft(row.original, { supplierId: e.target.value })}>
+          <option value="">Not linked</option>
+          {(suppliers.data ?? []).map((sp) => <option key={sp.id} value={sp.id}>{sp.companyName}</option>)}
+        </select>
+      ) : <span className="text-slate-300">-</span>,
     }),
     col.display({
       id: "status", header: "Status",
@@ -101,7 +125,7 @@ export default function SettingsPage() {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [drafts, savingId, me?.id, save, draftFor]);
+  ], [drafts, savingId, me?.id, save, draftFor, departments.data, suppliers.data]);
 
   const table = useReactTable({ data: users, columns, getCoreRowModel: getCoreRowModel() });
 
