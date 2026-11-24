@@ -2,14 +2,11 @@
  * Idempotent seed of DEMO DATA: departments, material categories, materials, suppliers and demo user profiles.
  * Safe to run repeatedly: every record is upserted on a natural key (code / sku / supplierCode / firebaseUid).
  *
- * Fully automatic: for every demo role the seed creates (or finds) the Firebase Auth user by email using the
- * Admin SDK credentials in backend/.env, then links its UID to the MongoDB profile. No manual UID copying.
- * All demo users get the same password: DEMO_PASSWORD from backend/.env (dev default below). Never use in production.
- * You can still override a user with DEMO_UID_<ROLE> if you already created the account yourself.
+ * Passwords are never handled here. Create each Firebase account first, then pass its UID via env vars, e.g.
+ *   DEMO_UID_SYSTEM_ADMIN=<uid> DEMO_UID_SUPPLIER=<uid> npm run seed
+ * Users without a UID are skipped. See docs/firebase-setup.md.
  */
-import { getAuth } from 'firebase-admin/auth';
 import { connectDatabase, disconnectDatabase } from '../src/config/database';
-import { getFirebaseApp } from '../src/config/firebase';
 import { Department } from '../src/models/Department';
 import { Material } from '../src/models/Material';
 import { MaterialCategory } from '../src/models/MaterialCategory';
@@ -18,7 +15,10 @@ import { User } from '../src/models/User';
 import { ensureDefaultRoles } from '../src/models/Role';
 import { toD128 } from '../src/domain/money';
 import { ROLES, ROLE_LABELS, type RoleName } from '../src/utils/permissions';
-import { DEMO_CATEGORIES, DEMO_MATERIALS, DEMO_SUPPLIERS, DEMO_SUPPLIER_USER_LINKS } from './demoData';
+import { Warehouse } from '../src/models/Warehouse';
+import { StockLevel } from '../src/models/StockLevel';
+import { StockMovement } from '../src/models/StockMovement';
+import { DEMO_CATEGORIES, DEMO_MATERIALS, DEMO_SUPPLIERS, DEMO_SUPPLIER_USER_LINKS, DEMO_WAREHOUSES, openingStock } from './demoData';
 
 const DEPARTMENTS = [
   { code: 'PROD', name: 'Production', description: 'Melt shop and rolling mill operations' },
@@ -41,28 +41,6 @@ const DEMO_EMAILS: Record<RoleName, string> = {
 // Roles that belong to the Production department so the requisition -> approval chain works out of the box.
 const PRODUCTION_ROLES: RoleName[] = ['department_manager', 'inventory_officer'];
 
-
-const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'Demo@12345';
-
-/** Returns the Firebase UID for an email, creating the account (verified, with DEMO_PASSWORD) if needed. */
-async function ensureFirebaseUser(email: string, displayName: string, overrideUid?: string): Promise<string | null> {
-  if (overrideUid) return overrideUid;
-  try {
-    const auth = getAuth(getFirebaseApp());
-    try {
-      const existing = await auth.getUserByEmail(email);
-      return existing.uid;
-    } catch (e: any) {
-      if (e?.code !== 'auth/user-not-found') throw e;
-    }
-    const created = await auth.createUser({ email, password: DEMO_PASSWORD, displayName, emailVerified: true });
-    return created.uid;
-  } catch (e: any) {
-    console.log(`could not create Firebase user ${email}: ${e?.message ?? e}`);
-    return null;
-  }
-}
-
 async function main() {
   await connectDatabase();
   await ensureDefaultRoles();
@@ -72,7 +50,7 @@ async function main() {
 
   const catByCode = new Map<string, any>();
   for (const c of DEMO_CATEGORIES) {
-    const doc = await MaterialCategory.findOneAndUpdate({ code: c.code }, { $set: { ...c, isDemoData: true } }, { upsert: true, returnDocument: 'after' });
+    const doc = await MaterialCategory.findOneAndUpdate({ code: c.code }, { $set: { ...c, isDemoData: true } }, { upsert: true, new: true });
     catByCode.set(c.code, doc);
   }
 
@@ -89,7 +67,7 @@ async function main() {
           verificationStatus: s.verification, status: s.status, history: s.history, isDemoData: true,
         },
       },
-      { upsert: true, returnDocument: 'after' },
+      { upsert: true, new: true },
     );
     supplierByCode.set(s.code, doc);
   }
@@ -112,6 +90,22 @@ async function main() {
     );
   }
 
+  // Warehouses and opening stock. Opening stock is written ONCE per material (guarded by an opening_balance ledger entry),
+  // as a balance plus a matching ledger row, so re-running the seed never doubles stock and never overwrites real movements.
+  const whByCode = new Map<string, any>();
+  for (const w of DEMO_WAREHOUSES) whByCode.set(w.code, await Warehouse.findOneAndUpdate({ code: w.code }, { $set: { ...w, active: true, isDemoData: true } }, { upsert: true, new: true }));
+  let opened = 0;
+  for (const [i, mat] of DEMO_MATERIALS.entries()) {
+    const doc = await Material.findOne({ sku: mat.sku }).lean();
+    const { warehouse, quantity } = openingStock(mat, i);
+    const wh = whByCode.get(warehouse);
+    if (!doc || !wh) continue;
+    if (await StockMovement.exists({ material: doc._id, warehouse: wh._id, type: 'opening_balance' })) continue;
+    const level = await StockLevel.findOneAndUpdate({ material: doc._id, warehouse: wh._id }, { $inc: { quantity: toD128(quantity) }, $set: { isDemoData: true } }, { upsert: true, new: true });
+    await StockMovement.create({ material: doc._id, warehouse: wh._id, type: 'opening_balance', delta: toD128(quantity), balanceAfter: level!.quantity, reason: 'DEMO opening balance', performedByName: 'Seed script', isDemoData: true });
+    opened++;
+  }
+
   const seedUser = async (uid: string, email: string, role: RoleName, extra: Record<string, unknown> = {}) => {
     await User.updateOne(
       { firebaseUid: uid },
@@ -122,20 +116,19 @@ async function main() {
 
   for (const role of ROLES) {
     if (role === 'supplier') continue;
-    const uid = await ensureFirebaseUser(DEMO_EMAILS[role], `[DEMO] ${ROLE_LABELS[role]}`, process.env[`DEMO_UID_${role.toUpperCase()}`]);
-    if (!uid) { console.log(`skip ${role}`); continue; }
+    const uid = process.env[`DEMO_UID_${role.toUpperCase()}`];
+    if (!uid) { console.log(`skip ${role}: set DEMO_UID_${role.toUpperCase()} to a Firebase UID to seed this user`); continue; }
     await seedUser(uid, DEMO_EMAILS[role], role, { department: PRODUCTION_ROLES.includes(role) ? prod?._id : null });
-    console.log(`seeded ${role}: ${DEMO_EMAILS[role]}`);
+    console.log(`seeded ${role}`);
   }
   for (const link of DEMO_SUPPLIER_USER_LINKS) {
-    const uid = await ensureFirebaseUser(link.email, `[DEMO] Supplier ${link.supplierCode}`, process.env[link.env]);
-    if (!uid) { console.log(`skip ${link.supplierCode} login`); continue; }
+    const uid = process.env[link.env];
+    if (!uid) { console.log(`skip ${link.supplierCode} login: set ${link.env}`); continue; }
     await seedUser(uid, link.email, 'supplier', { supplier: supplierByCode.get(link.supplierCode)._id, department: null });
-    console.log(`seeded supplier login for ${link.supplierCode}: ${link.email}`);
+    console.log(`seeded supplier login for ${link.supplierCode}`);
   }
-  console.log(`\nAll demo users share the password: ${DEMO_PASSWORD}`);
 
-  console.log(`Seeded ${DEPARTMENTS.length} departments, ${DEMO_CATEGORIES.length} categories, ${DEMO_MATERIALS.length} materials, ${DEMO_SUPPLIERS.length} suppliers.`);
+  console.log(`Seeded ${DEPARTMENTS.length} departments, ${DEMO_CATEGORIES.length} categories, ${DEMO_MATERIALS.length} materials, ${DEMO_SUPPLIERS.length} suppliers, ${DEMO_WAREHOUSES.length} warehouses (${opened} new opening balances).`);
   await disconnectDatabase();
 }
 

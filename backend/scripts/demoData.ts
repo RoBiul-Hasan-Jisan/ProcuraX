@@ -91,3 +91,20 @@ export const DEMO_SUPPLIER_USER_LINKS: { env: string; supplierCode: string; emai
   { env: 'DEMO_UID_SUPPLIER_2', supplierCode: 'SUP-0002', email: 'supplier2@demo.steelprocure.example' },
   { env: 'DEMO_UID_SUPPLIER_3', supplierCode: 'SUP-0003', email: 'supplier3@demo.steelprocure.example' },
 ];
+
+export const DEMO_WAREHOUSES = [
+  { code: 'WH-MAIN', name: '[DEMO] Main Raw Material Yard', location: 'Plant Gate 1' },
+  { code: 'WH-MILL', name: '[DEMO] Rolling Mill Store', location: 'Mill Bay 3' },
+  { code: 'WH-SPR', name: '[DEMO] Spares & Consumables Store', location: 'Maintenance Block' },
+];
+
+/** Which warehouse a category is normally kept in. */
+const HOME: Record<string, string> = { BIL: 'WH-MAIN', SCR: 'WH-MAIN', FER: 'WH-MAIN', CON: 'WH-MAIN', REF: 'WH-MILL', PKG: 'WH-MILL', SPR: 'WH-SPR', LUB: 'WH-SPR', ELE: 'WH-SPR', MEC: 'WH-SPR' };
+// Cycles through healthy, reorder, low and critical so every alert level has demo rows. Fractions of the reorder point.
+const FACTORS = [1.8, 1.4, 0.85, 1.2, 0.45, 2.1, 0.25, 1.6, 0.7];
+
+/** Deterministic opening balance so the demo shows every stock status. Returns whole units. */
+export function openingStock(m: DemoMaterial, index: number): { warehouse: string; quantity: string } {
+  const qty = Math.max(1, Math.round(m.reorder * FACTORS[index % FACTORS.length]));
+  return { warehouse: HOME[m.category], quantity: String(qty) };
+}
