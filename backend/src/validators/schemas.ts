@@ -103,3 +103,32 @@ export const awardBody = z.object({ quotationId: objectId, justification: z.stri
 export const approvalSettingsBody = z.object({ financeThreshold: decimalString('Threshold'), currency: z.string().trim().length(3).toUpperCase() });
 
 export const linkSupplierBody = z.object({ supplierId: objectId.nullable() });
+
+/* ---------- Phase 3 ---------- */
+const qty = (label: string) => decimalString(label).refine((v) => Number(v) > 0, `${label} must be greater than zero`);
+const qtyOrZero = (label: string) => decimalString(label);
+export const createPoBody = z.object({ rfqId: objectId });
+export const listPoQuery = z.object({ ...page, status: z.enum(['draft', 'issued', 'partially_received', 'received', 'closed', 'cancelled']).optional(), supplier: objectId.optional() });
+export const reasonBody = z.object({ reason: z.string().trim().min(3, 'A reason is required').max(500) });
+
+export const receiptBody = z.object({
+  purchaseOrderId: objectId, warehouseId: objectId, deliveryNote: z.string().trim().max(100).default(''), notes: z.string().trim().max(500).default(''),
+  lines: z.array(z.object({ materialId: objectId, acceptedQty: qtyOrZero('Accepted quantity').default('0'), rejectedQty: qtyOrZero('Rejected quantity').default('0'), rejectionReason: z.string().trim().max(300).optional() })).min(1).max(50),
+});
+export const listReceiptsQuery = z.object({ ...page, purchaseOrder: objectId.optional() });
+
+export const invoiceBody = z.object({
+  purchaseOrderId: objectId, invoiceNumber: z.string().trim().min(1).max(60), invoiceDate: z.coerce.date().refine((d) => d.getTime() <= Date.now() + 86_400_000, 'Invoice date cannot be in the future'),
+  lines: z.array(z.object({ materialId: objectId, quantity: qty('Quantity'), unitPrice: qty('Unit price') })).min(1).max(50),
+  transportCost: decimalString('Transportation cost').default('0'), additionalCharges: decimalString('Additional charges').default('0'), taxRatePercent: decimalString('Tax rate').default('0'),
+});
+export const listInvoicesQuery = z.object({ ...page, status: z.enum(['pending_verification', 'verified', 'disputed']).optional(), purchaseOrder: objectId.optional() });
+export const invoiceDecisionBody = z.object({ action: z.enum(['verify', 'dispute']), comment: z.string().trim().max(500).default('') });
+
+export const warehouseBody = z.object({ code: z.string().trim().min(2).max(12), name: z.string().trim().min(2).max(80), location: z.string().trim().max(200).default('') });
+export const warehouseUpdateBody = z.object({ name: z.string().trim().min(2).max(80), location: z.string().trim().max(200), active: z.boolean() }).partial().refine((v) => Object.keys(v).length > 0, 'At least one field is required');
+export const stockQuery = z.object({ search: z.string().trim().max(80).optional(), status: z.enum(['ok', 'reorder', 'low', 'critical']).optional(), warehouse: objectId.optional() });
+export const movementsQuery = z.object({ ...page, material: objectId.optional(), warehouse: objectId.optional(), type: z.enum(['opening_balance', 'receipt', 'issue', 'transfer_in', 'transfer_out', 'adjustment']).optional() });
+export const adjustmentBody = z.object({ materialId: objectId, warehouseId: objectId, direction: z.enum(['increase', 'decrease']), quantity: qty('Quantity'), reason: z.string().trim().min(5, 'A reason is required').max(300) });
+export const issueBody = z.object({ materialId: objectId, warehouseId: objectId, quantity: qty('Quantity'), reason: z.string().trim().min(3, 'A reason is required').max(300) });
+export const transferBody = z.object({ materialId: objectId, fromWarehouseId: objectId, toWarehouseId: objectId, quantity: qty('Quantity'), reason: z.string().trim().min(3).max(300) });

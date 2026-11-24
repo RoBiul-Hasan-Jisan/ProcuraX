@@ -18,6 +18,7 @@ import { ROLE_LABELS } from '../utils/permissions';
 import { linkUserToSupplier } from '../services/supplierService';
 import catalogRoutes from './catalog';
 import procurementRoutes from './procurement';
+import purchasingRoutes from './purchasing';
 
 const router = Router();
 
@@ -125,5 +126,6 @@ router.post(
 
 router.use(catalogRoutes);
 router.use(procurementRoutes);
+router.use(purchasingRoutes);
 
 export default router;

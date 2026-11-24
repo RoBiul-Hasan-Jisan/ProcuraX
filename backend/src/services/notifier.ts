@@ -7,5 +7,8 @@ export const notify = {
   async requisitionDecided(_requisition: unknown, _action: string): Promise<void> {},
   async rfqPublished(_rfq: unknown, _supplierIds: string[]): Promise<void> {},
   async quotationSubmitted(_rfq: unknown, _supplierId: string): Promise<void> {},
+  async purchaseOrderIssued(_po: unknown, _supplierId: string): Promise<void> {},
+  async goodsReceived(_po: unknown): Promise<void> {},
+  async invoiceDecided(_invoice: unknown, _decision: string): Promise<void> {},
   async supplierAwarded(_rfq: unknown, _supplierId: string): Promise<void> {},
 };
