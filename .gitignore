@@ -24,3 +24,8 @@ venv/
 .pytest_cache/
 ml/artifacts/*
 !ml/artifacts/.gitkeep
+*.whl
+__pycache__/
+*.py[cod]
+.venv/
+venv/
