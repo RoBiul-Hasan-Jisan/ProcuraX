@@ -49,6 +49,9 @@ export const PERMISSIONS = [
   'suppliers:view',
   'suppliers:manage',
   'suppliers:evaluate',
+  'suppliers:self',
+  'suppliers:bank',
+  'materials:view',
   'mrp:view',
   'mrp:run',
   'production:manage',
@@ -65,32 +68,36 @@ const ALL: Permission[] = [...PERMISSIONS];
 export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
   system_admin: ALL,
   procurement_manager: [
-    'dashboard:view', 'requisitions:view', 'rfq:manage', 'quotations:compare',
+    'dashboard:view', 'materials:view', 'requisitions:view', 'requisitions:approve', 'rfq:manage', 'quotations:compare',
     'purchase_orders:manage', 'purchase_orders:view', 'suppliers:view', 'suppliers:manage',
     'suppliers:evaluate', 'inventory:view', 'mrp:view', 'mrp:run', 'forecasting:view',
     'intelligence:view', 'reports:view', 'reports:financial', 'notifications:view',
   ],
   department_manager: [
-    'dashboard:view', 'requisitions:view', 'requisitions:create', 'requisitions:approve',
+    'dashboard:view', 'materials:view', 'requisitions:view', 'requisitions:create', 'requisitions:approve',
     'purchase_orders:view', 'inventory:view', 'reports:view', 'notifications:view',
   ],
   inventory_officer: [
-    'dashboard:view', 'inventory:view', 'inventory:manage', 'materials:manage',
+    'dashboard:view', 'materials:view', 'requisitions:view', 'requisitions:create',
+    'inventory:view', 'inventory:manage', 'materials:manage',
     'warehouses:manage', 'goods_receipts:manage', 'purchase_orders:view', 'mrp:view',
     'production:manage', 'forecasting:view', 'reports:view', 'notifications:view',
   ],
   finance_officer: [
-    'dashboard:view', 'requisitions:view', 'requisitions:approve', 'quotations:compare',
-    'purchase_orders:view', 'invoices:verify', 'suppliers:view', 'reports:view',
+    'dashboard:view', 'materials:view', 'requisitions:view', 'requisitions:approve', 'quotations:compare',
+    'purchase_orders:view', 'invoices:verify', 'suppliers:view', 'suppliers:bank', 'reports:view',
     'reports:financial', 'notifications:view',
   ],
   supplier: [
     'rfq:view_assigned', 'quotations:submit', 'purchase_orders:view_assigned',
-    'notifications:view',
+    'suppliers:self', 'notifications:view',
   ],
   management: [
-    'dashboard:view', 'requisitions:view', 'purchase_orders:view', 'inventory:view',
+    'dashboard:view', 'materials:view', 'requisitions:view', 'purchase_orders:view', 'inventory:view',
     'suppliers:view', 'mrp:view', 'forecasting:view', 'intelligence:view', 'reports:view',
     'reports:financial', 'notifications:view',
   ],
 };
+
+/** Bump when DEFAULT_ROLE_PERMISSIONS gains permissions; startup merges the additions into stored roles. */
+export const DEFAULTS_VERSION = 2;

@@ -17,6 +17,7 @@ export const updateUserBody = z
     role: z.enum(ROLES).nullable().optional(),
     status: z.enum(['pending', 'active', 'suspended']).optional(),
     departmentId: objectId.nullable().optional(),
+    supplierId: objectId.nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, 'At least one field is required');
 
@@ -25,3 +26,80 @@ export const createDepartmentBody = z.object({
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(300).optional(),
 });
+
+/* ---------- Phase 2 ---------- */
+const decimalString = (label: string) =>
+  z.union([z.string(), z.number()]).transform((v) => String(v).trim())
+    .refine((v) => /^\d+(\.\d{1,4})?$/.test(v), `${label} must be a non-negative number with at most 4 decimals`);
+const positive = (label: string) => decimalString(label).refine((v) => Number(v) > 0, `${label} must be greater than zero`);
+const futureDate = z.coerce.date();
+const page = { page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) };
+const boolish = z.enum(['true', 'false']).transform((v) => v === 'true');
+
+export const listMaterialsQuery = z.object({ ...page, search: z.string().trim().max(80).optional(), category: objectId.optional(), active: boolish.optional() });
+export const materialBody = z.object({
+  sku: z.string().trim().min(2).max(40), name: z.string().trim().min(2).max(120), category: objectId,
+  description: z.string().trim().max(500).default(''), unit: z.string().trim().min(1).max(20),
+  technicalSpecs: z.string().trim().max(1000).default(''), preferredSuppliers: z.array(objectId).max(20).default([]),
+  minimumStock: z.number().min(0).default(0), safetyStock: z.number().min(0).default(0), reorderPoint: z.number().min(0).default(0),
+  averagePurchasePrice: decimalString('Average price').nullable().optional(), active: z.boolean().default(true),
+});
+export const materialUpdateBody = materialBody.partial().refine((v) => Object.keys(v).length > 0, 'At least one field is required');
+
+export const listSuppliersQuery = z.object({
+  ...page, search: z.string().trim().max(80).optional(),
+  status: z.enum(['active', 'inactive', 'blocked']).optional(), verification: z.enum(['pending', 'verified', 'rejected']).optional(),
+});
+const bankInfo = z.object({ bankName: z.string().trim().max(80).default(''), accountName: z.string().trim().max(80).default(''), accountNumber: z.string().trim().max(40).default('') });
+export const supplierBody = z.object({
+  companyName: z.string().trim().min(2).max(120), contactPerson: z.string().trim().min(2).max(80), email: z.string().trim().email(),
+  phone: z.string().trim().max(30).default(''), address: z.string().trim().max(300).default(''),
+  registrationNumber: z.string().trim().max(60).default(''), taxId: z.string().trim().max(60).default(''),
+  materialCategories: z.array(objectId).max(20).default([]), paymentTerms: z.string().trim().max(60).default('Net 30'),
+  paymentTermsDays: z.number().int().min(0).max(365).default(30), bankInfo: bankInfo.optional(),
+  verificationStatus: z.enum(['pending', 'verified', 'rejected']).optional(), status: z.enum(['active', 'inactive', 'blocked']).optional(),
+});
+export const supplierUpdateBody = supplierBody.partial().refine((v) => Object.keys(v).length > 0, 'At least one field is required');
+export const supplierSelfBody = z.object({
+  contactPerson: z.string().trim().min(2).max(80), email: z.string().trim().email(), phone: z.string().trim().max(30),
+  address: z.string().trim().max(300), registrationNumber: z.string().trim().max(60), taxId: z.string().trim().max(60), bankInfo,
+}).partial().refine((v) => Object.keys(v).length > 0, 'At least one field is required');
+
+export const requisitionBody = z.object({
+  items: z.array(z.object({ materialId: objectId, quantity: positive('Quantity'), estimatedUnitPrice: decimalString('Estimated unit price') })).min(1).max(50),
+  requiredDate: futureDate.refine((d) => d.getTime() > Date.now(), 'Required date must be in the future'),
+  priority: z.enum(['Low', 'Medium', 'High', 'Urgent']).default('Medium'),
+  reason: z.string().trim().min(5, 'Please give a reason').max(1000),
+});
+export const listRequisitionsQuery = z.object({
+  ...page, status: z.string().trim().max(40).optional(), search: z.string().trim().max(80).optional(),
+  department: objectId.optional(), mine: boolish.optional(),
+});
+export const cancelBody = z.object({ reason: z.string().trim().min(3, 'A reason is required').max(500) });
+export const decisionBody = z.object({ action: z.enum(['approve', 'reject', 'request_modification']), comment: z.string().trim().max(1000).default('') });
+
+export const rfqBody = z.object({
+  requisitionId: objectId, deliveryLocation: z.string().trim().min(2).max(200),
+  deadline: futureDate, paymentTerms: z.string().trim().max(100).default('Net 30'),
+  deliveryRequirements: z.string().trim().max(1000).default(''), invitedSupplierIds: z.array(objectId).min(1, 'Invite at least one supplier').max(30),
+});
+export const listRfqsQuery = z.object({ ...page, status: z.enum(['open', 'closed', 'awarded', 'cancelled']).optional() });
+export const quotationBody = z.object({
+  lines: z.array(z.object({ materialId: objectId, unitPrice: positive('Unit price') })).min(1).max(50),
+  transportCost: decimalString('Transportation cost').default('0'), additionalCharges: decimalString('Additional charges').default('0'),
+  taxRatePercent: decimalString('Tax rate').default('0'), deliveryDays: z.number().int().min(1).max(730),
+  paymentTerms: z.string().trim().min(2).max(100), paymentTermsDays: z.number().int().min(0).max(365).default(0),
+  validUntil: futureDate, notes: z.string().trim().max(1000).default(''),
+});
+export const weightsBody = z.object({
+  price: z.number().min(0).max(100), delivery: z.number().min(0).max(100), quality: z.number().min(0).max(100),
+  leadTime: z.number().min(0).max(100), payment: z.number().min(0).max(100),
+}).refine((w) => w.price + w.delivery + w.quality + w.leadTime + w.payment > 0, 'At least one weight must be greater than zero');
+export const comparisonQuery = z.object({
+  price: z.coerce.number().min(0).optional(), delivery: z.coerce.number().min(0).optional(), quality: z.coerce.number().min(0).optional(),
+  leadTime: z.coerce.number().min(0).optional(), payment: z.coerce.number().min(0).optional(),
+});
+export const awardBody = z.object({ quotationId: objectId, justification: z.string().trim().max(1000).default('') });
+export const approvalSettingsBody = z.object({ financeThreshold: decimalString('Threshold'), currency: z.string().trim().length(3).toUpperCase() });
+
+export const linkSupplierBody = z.object({ supplierId: objectId.nullable() });

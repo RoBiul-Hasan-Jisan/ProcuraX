@@ -33,6 +33,11 @@ export const userRepository = {
     return doc ? toRecord(doc) : null;
   },
 
+  async findById(id: string): Promise<ProfileRecord | null> {
+    const doc = await User.findById(id).lean();
+    return doc ? toRecord(doc) : null;
+  },
+
   async findByEmail(email: string): Promise<ProfileRecord | null> {
     const doc = await User.findOne({ email: email.toLowerCase() }).lean();
     return doc ? toRecord(doc) : null;

@@ -15,6 +15,9 @@ import { authLimiter } from '../middlewares/rateLimiter';
 import { sendSuccess, badRequest, conflict, notFound, forbidden, unauthorized } from '../utils/apiResponse';
 import { createDepartmentBody, idParam, listUsersQuery, updateUserBody } from '../validators/schemas';
 import { ROLE_LABELS } from '../utils/permissions';
+import { linkUserToSupplier } from '../services/supplierService';
+import catalogRoutes from './catalog';
+import procurementRoutes from './procurement';
 
 const router = Router();
 
@@ -81,8 +84,10 @@ router.patch(
     if (patch.status === 'active' && patch.role === null) {
       throw badRequest('An active account requires a role');
     }
-    const updated = await userRepository.update(id, patch);
+    const { supplierId, ...userPatch } = patch as typeof patch & { supplierId?: string | null };
+    const updated = Object.keys(userPatch).length ? await userRepository.update(id, userPatch) : await userRepository.findById(id);
     if (!updated) throw notFound('User not found');
+    if (supplierId !== undefined) await linkUserToSupplier(id, supplierId);
     if (updated.status === 'active' && !updated.role) {
       // Roll back to pending: an active user must always have a role.
       await userRepository.update(id, { status: 'pending' });
@@ -117,5 +122,8 @@ router.post(
     }
   },
 );
+
+router.use(catalogRoutes);
+router.use(procurementRoutes);
 
 export default router;
