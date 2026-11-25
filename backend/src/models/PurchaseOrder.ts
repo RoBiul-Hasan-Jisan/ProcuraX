@@ -47,5 +47,8 @@ const schema = new Schema(
   { timestamps: true },
 );
 // One live PO per RFQ.
+// Reports filter and group by issue date and expected delivery date.
+schema.index({ issuedAt: 1, status: 1 });
+schema.index({ expectedDeliveryDate: 1, status: 1 });
 schema.index({ rfq: 1 }, { unique: true, partialFilterExpression: { status: { $ne: 'cancelled' } } });
 export const PurchaseOrder = model('PurchaseOrder', schema);

@@ -18,4 +18,5 @@ const schema = new Schema(
   { timestamps: { createdAt: true, updatedAt: false } },
 );
 schema.index({ createdAt: -1 });
+schema.index({ type: 1, createdAt: -1 }); // consumption and forecast-performance reports
 export const StockMovement = model('StockMovement', schema);

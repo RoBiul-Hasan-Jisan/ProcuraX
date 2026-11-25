@@ -21,5 +21,7 @@ const schema = new Schema(
   { timestamps: true },
 );
 // The same supplier invoice number can be recorded only once.
+schema.index({ invoiceDate: -1 }); // invoice discrepancy report
+schema.index({ status: 1, invoiceDate: -1 });
 schema.index({ supplier: 1, invoiceNumber: 1 }, { unique: true });
 export const Invoice = model('Invoice', schema);
