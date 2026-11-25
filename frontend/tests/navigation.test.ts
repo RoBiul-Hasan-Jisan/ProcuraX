@@ -42,12 +42,15 @@ describe("role-based navigation", () => {
     expect(isEnabled(all.find((i) => i.label === "Demand Forecasting")!)).toBe(true); // Phase 5
   });
 
-  it("Phase 5 pages are enabled, and pages that do not exist yet stay disabled", () => {
-    const all = visibleNavigation(canWith(["intelligence:view", "suppliers:view", "suppliers:evaluate", "reports:view", "notifications:view"])).flatMap((s) => s.items);
-    for (const l of ["AI Procurement Assistant", "Risk Detection", "Forecast Analytics", "Supplier Performance"]) expect(isEnabled(all.find((i) => i.label === l)!)).toBe(true);
-    expect(isEnabled(all.find((i) => i.label === "Supplier Evaluation")!)).toBe(false); // no page yet: Phase 6
-    expect(isEnabled(all.find((i) => i.label === "Reports")!)).toBe(false);
+  it("Phase 5 and Phase 6 pages are enabled", () => {
+    const all = visibleNavigation(canWith(["intelligence:view", "suppliers:view", "suppliers:evaluate", "reports:view", "notifications:view", "audit:view"])).flatMap((s) => s.items);
+    for (const l of ["AI Procurement Assistant", "Risk Detection", "Forecast Analytics", "Supplier Performance", "Supplier Evaluation", "Reports", "Notifications", "Audit Logs"]) expect(isEnabled(all.find((i) => i.label === l)!), l).toBe(true);
     expect(all.map((i) => i.label)).not.toContain("Supplier Intelligence"); // folded into Supplier Performance
+  });
+
+  it("audit logs are only listed for holders of audit:view", () => {
+    expect(labels(["reports:view", "notifications:view"])).not.toContain("Audit Logs");
+    expect(labels(["audit:view"])).toContain("Audit Logs");
   });
 
   it("every enabled navigation page exists in the app", () => {
