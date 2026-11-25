@@ -7,6 +7,7 @@ import { runInTransaction } from '../utils/transaction';
 import { badRequest, conflict, notFound } from '../utils/apiResponse';
 import type { UserContext } from '../types/express';
 import { notify } from './notifier';
+import { audit } from './auditService';
 
 export interface InvoiceInput {
   purchaseOrderId: string; invoiceNumber: string; invoiceDate: Date;
@@ -62,6 +63,7 @@ export async function recordInvoice(user: UserContext, input: InvoiceInput) {
       taxRatePercent: toD128(input.taxRatePercent), taxAmount: toD128(cost.taxAmount), totalAmount: toD128(cost.totalLandedCost),
       invoiceDate: input.invoiceDate, dueDate, match: { ...match, checkedAt: new Date() }, recordedBy: user.id,
     });
+    await audit(user, { action: 'invoice.recorded', entityType: 'Invoice', entityId: String(inv._id), entityNumber: inv.number ?? '', summary: `Recorded supplier invoice ${input.invoiceNumber}${match.ok ? '' : ' (three-way match failed)'}`, after: { purchaseOrder: String(input.purchaseOrderId), matchOk: match.ok, totalAmount: String(cost.totalLandedCost) } });
     return getInvoice(String(inv._id));
   } catch (e: any) {
     if (e?.code === 11000) throw conflict('This supplier invoice number has already been recorded');
@@ -119,5 +121,6 @@ export async function decideInvoice(user: UserContext, id: string, action: 'veri
   });
   const out = await getInvoice(id);
   await notify.invoiceDecided(out, action);
+  await audit(user, { action: action === 'verify' ? 'invoice.verified' : 'invoice.disputed', entityType: 'Invoice', entityId: id, entityNumber: out.number, summary: `${action === 'verify' ? 'Verified' : 'Disputed'} invoice${comment ? `: ${comment}` : ''}`, before: { status: 'pending_verification' }, after: { status: out.status } });
   return out;
 }

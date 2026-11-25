@@ -6,6 +6,7 @@ import { badRequest, conflict, forbidden, notFound } from '../utils/apiResponse'
 import type { UserContext } from '../types/express';
 import { getRequisition, presentRequisition } from './requisitionService';
 import { notify } from './notifier';
+import { audit } from './auditService';
 
 const HISTORY_ACTION = { approve: 'approved', reject: 'rejected', request_modification: 'modification_requested' } as const;
 
@@ -76,6 +77,7 @@ export async function decide(user: UserContext, requisitionId: string, action: A
     actor: user.id, actorName: user.displayName, actorRole: user.role, comment, at: now,
   });
 
+  await audit(user, { action: 'approval.decided', entityType: 'PurchaseRequisition', entityId: requisitionId, entityNumber: requisition.number ?? '', summary: `${action} at step "${stepInfo.label}"${comment ? `: ${comment}` : ''}`, before: { status: requisition.status }, after: { status: outcome.requisitionStatus, decision: action } });
   if (outcome.requestStatus === 'pending') await notify.approvalNeeded(requisition, updated.steps.find((s: any) => s.order === outcome.nextStep)!.role);
   else await notify.requisitionDecided(requisition, outcome.requisitionStatus);
   return getRequisition(user, requisitionId);

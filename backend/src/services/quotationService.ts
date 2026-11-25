@@ -6,6 +6,7 @@ import { validateQuotationWindow } from '../domain/quotationRules';
 import { badRequest, conflict, forbidden, notFound } from '../utils/apiResponse';
 import type { UserContext } from '../types/express';
 import { notify } from './notifier';
+import { audit } from './auditService';
 
 export interface QuotationInput {
   lines: { materialId: string; unitPrice: string }[];
@@ -83,10 +84,14 @@ export async function submitQuotation(user: UserContext, rfqId: string, input: Q
 
   // Upsert keyed on (rfq, supplier). The unique index makes concurrent first submissions safe.
   const existing = await SupplierQuotation.findOneAndUpdate({ rfq: rfqId, supplier: supplierId, status: { $in: ['submitted', 'withdrawn'] } }, { $set: fields }, { new: true });
-  if (existing) return presentQuotation(existing);
+  if (existing) {
+    await audit(user, { action: 'quotation.submitted', entityType: 'SupplierQuotation', entityId: String(existing._id), entityNumber: rfq.number, summary: 'Revised quotation before the deadline', after: { rfq: String(rfqId), supplier: String(supplierId) } });
+    return presentQuotation(existing);
+  }
   try {
     const created = await SupplierQuotation.create({ rfq: rfqId, supplier: supplierId, ...fields });
     await notify.quotationSubmitted(rfq, supplierId);
+    await audit(user, { action: 'quotation.submitted', entityType: 'SupplierQuotation', entityId: String(created._id), entityNumber: rfq.number, summary: 'Submitted quotation', after: { rfq: String(rfqId), supplier: String(supplierId) } });
     return presentQuotation(created);
   } catch (e: any) {
     if (e?.code === 11000) throw conflict('A quotation already exists for this RFQ and can no longer be changed');

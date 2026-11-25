@@ -13,6 +13,8 @@ import { badRequest, conflict, forbidden, notFound } from '../utils/apiResponse'
 import type { UserContext } from '../types/express';
 import { requisitionScope } from './scope';
 import { notify } from './notifier';
+import { audit } from './auditService';
+import { diffFields } from '../domain/audit';
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -72,6 +74,7 @@ export async function createRequisition(user: UserContext, input: RequisitionInp
     items, estimatedTotal: toD128(total), requiredDate: input.requiredDate, priority: input.priority, reason: input.reason,
     status: 'Draft',
   });
+  await audit(user, { action: 'requisition.created', entityType: 'PurchaseRequisition', entityId: String(doc._id), entityNumber: doc.number ?? '', summary: `Created a draft requisition with ${items.length} line(s)`, after: { estimatedTotal: String(total), lines: items.length, priority: input.priority, requiredDate: input.requiredDate } });
   return getRequisition(user, String(doc._id));
 }
 
@@ -93,6 +96,8 @@ export async function updateRequisition(user: UserContext, id: string, input: Re
     { new: true },
   );
   if (!updated) throw conflict('The requisition changed while you were editing it');
+  const snap = (x: any) => ({ estimatedTotal: String(x.estimatedTotal), requiredDate: x.requiredDate, priority: x.priority, reason: x.reason, lines: x.items.length });
+  await audit(user, { action: 'requisition.updated', entityType: 'PurchaseRequisition', entityId: id, entityNumber: updated.number ?? '', summary: 'Edited requisition', ...(diffFields(snap(r), snap(updated), ['estimatedTotal', 'requiredDate', 'priority', 'reason', 'lines']) ?? {}) });
   return getRequisition(user, id);
 }
 
@@ -119,6 +124,8 @@ export async function submitRequisition(user: UserContext, id: string) {
     actor: user.id, actorName: user.displayName, actorRole: user.role,
   });
   await notify.approvalNeeded(r, steps[0].role);
+  await notify.requisitionSubmitted(r, user.id);
+  await audit(user, { action: 'requisition.submitted', entityType: 'PurchaseRequisition', entityId: id, entityNumber: r.number ?? '', summary: cycle > 1 ? `Resubmitted for approval (cycle ${cycle})` : 'Submitted for approval', before: { status: from }, after: { status: 'Submitted', approvalSteps: steps.map((s: any) => s.role) } });
   return getRequisition(user, id);
 }
 
@@ -135,6 +142,7 @@ export async function cancelRequisition(user: UserContext, id: string, reason: s
   await ApprovalHistory.create({
     requisition: id, action: 'cancelled', actor: user.id, actorName: user.displayName, actorRole: user.role, comment: reason,
   });
+  await audit(user, { action: 'requisition.cancelled', entityType: 'PurchaseRequisition', entityId: id, entityNumber: r.number ?? '', summary: `Cancelled: ${reason}`, before: { status: from }, after: { status: 'Cancelled' } });
   return getRequisition(user, id);
 }
 

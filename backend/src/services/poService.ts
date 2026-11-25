@@ -11,6 +11,7 @@ import { runInTransaction } from '../utils/transaction';
 import { conflict, forbidden, notFound } from '../utils/apiResponse';
 import type { UserContext } from '../types/express';
 import { notify } from './notifier';
+import { audit } from './auditService';
 
 export function presentPo(p: any) {
   return {
@@ -76,6 +77,7 @@ export async function createFromRfq(user: UserContext, rfqId: string) {
       paymentTerms: quote.paymentTerms, paymentTermsDays: quote.paymentTermsDays, deliveryLocation: rfq.deliveryLocation, deliveryDays: quote.deliveryDays,
       createdBy: user.id,
     });
+    await audit(user, { action: 'purchase_order.created', entityType: 'PurchaseOrder', entityId: String(po._id), entityNumber: po.number, summary: `Created draft purchase order from RFQ ${rfq.number}`, after: { rfq: String(rfq._id), supplier: String(quote.supplier), totalAmount: String(quote.totalLandedCost) } });
     return getPurchaseOrder(user, String(po._id));
   } catch (e: any) {
     if (e?.code === 11000) throw conflict('A purchase order already exists for this RFQ');
@@ -100,6 +102,7 @@ export async function issuePurchaseOrder(user: UserContext, id: string) {
   });
   const po = await getPurchaseOrder(user, id);
   await notify.purchaseOrderIssued(po, po.supplier.id);
+  await audit(user, { action: 'purchase_order.issued', entityType: 'PurchaseOrder', entityId: id, entityNumber: po.number, summary: 'Issued purchase order to the supplier', before: { status: 'draft' }, after: { status: 'issued', expectedDeliveryDate: po.expectedDeliveryDate, totalAmount: po.totalAmount } });
   return po;
 }
 
@@ -111,6 +114,7 @@ export async function cancelPurchaseOrder(user: UserContext, id: string, reason:
     if (!exists) throw notFound('Purchase order not found');
     throw conflict('Only a purchase order with no receipts can be cancelled. Use short-close for a partially received order.');
   }
+  await audit(user, { action: 'purchase_order.cancelled', entityType: 'PurchaseOrder', entityId: id, entityNumber: p.number, summary: `Cancelled: ${reason}`, after: { status: 'cancelled' } });
   return getPurchaseOrder(user, id);
 }
 
@@ -122,6 +126,7 @@ export async function closePurchaseOrder(user: UserContext, id: string, reason: 
     await recordSupplierPerformance(session, po, false);
     await PurchaseRequisition.updateOne({ _id: po.requisition, status: { $in: ['Ordered', 'Partially Fulfilled'] } }, { $set: { status: 'Completed' } }, { session });
   });
+  await audit(user, { action: 'purchase_order.closed', entityType: 'PurchaseOrder', entityId: id, summary: `Short-closed: ${reason}`, before: { status: 'partially_received' }, after: { status: 'closed' } });
   return getPurchaseOrder(user, id);
 }
 

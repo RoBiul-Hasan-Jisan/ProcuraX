@@ -7,6 +7,7 @@ import { toDaily, weeklyTotals, isoDay } from '../domain/series';
 import { requestDemandForecast, requestPriceForecast } from './mlClient';
 import { notFound } from '../utils/apiResponse';
 import type { UserContext } from '../types/express';
+import { audit } from './auditService';
 
 const HISTORY_DAYS = 400;
 
@@ -43,6 +44,7 @@ export async function runDemandForecast(user: UserContext, materialId: string, n
     ...meta(m), status: result.status, reason: result.status === 'ok' ? undefined : (result as any).reason, modelVersion: result.modelVersion, selectedModel: result.status === 'ok' ? (result as any).selectedModel : undefined,
     asOf: now, result, generatedBy: user.id, generatedByName: user.displayName ?? user.email,
   });
+  await audit(user, { action: 'forecast.generated', entityType: 'Material', entityId: materialId, entityNumber: m.sku, summary: `Generated a demand forecast (${result.status})`, after: { kind: 'demand', status: result.status, modelVersion: result.modelVersion } });
   return presentForecast(doc);
 }
 
@@ -54,6 +56,7 @@ export async function runPriceForecast(user: UserContext, materialId: string, no
     ...meta(m), status: result.status, reason: result.status === 'ok' ? undefined : (result as any).reason, modelVersion: result.modelVersion, method: result.status === 'ok' ? (result as any).method : undefined,
     asOf: now, result, generatedBy: user.id, generatedByName: user.displayName ?? user.email,
   });
+  await audit(user, { action: 'forecast.generated', entityType: 'Material', entityId: materialId, entityNumber: m.sku, summary: `Generated a price forecast (${result.status})`, after: { kind: 'price', status: result.status, modelVersion: result.modelVersion } });
   return presentForecast(doc);
 }
 

@@ -8,6 +8,7 @@ import { DEFAULT_WEIGHTS, normalizeWeights, scoreQuotations, type ScoreWeights }
 import { badRequest, conflict, notFound } from '../utils/apiResponse';
 import type { UserContext } from '../types/express';
 import { notify } from './notifier';
+import { audit } from './auditService';
 
 /** Quotations that are this much above the material's average purchase price are flagged for review. */
 const PRICE_FLAG_PERCENT = 20;
@@ -20,7 +21,7 @@ export async function setScoringWeights(w: ScoreWeights) {
 }
 
 /** Sealed-bid rule: quotations can be opened only after the deadline or once the RFQ is closed/awarded. */
-const isOpenedForComparison = (rfq: { status: string; deadline: Date }) => rfq.status !== 'open' || rfq.deadline.getTime() <= Date.now();
+export const isOpenedForComparison = (rfq: { status: string; deadline: Date }) => rfq.status !== 'open' || rfq.deadline.getTime() <= Date.now();
 
 export async function getComparison(rfqId: string, weightsOverride?: ScoreWeights) {
   const rfq = await RFQ.findById(rfqId).lean();
@@ -121,5 +122,6 @@ export async function awardRfq(user: UserContext, rfqId: string, quotationId: st
   await SupplierQuotation.updateOne({ _id: quote._id }, { $set: { status: 'awarded' } });
   await SupplierQuotation.updateMany({ rfq: rfqId, _id: { $ne: quote._id }, status: 'submitted' }, { $set: { status: 'not_selected' } });
   await notify.supplierAwarded(gate, String(quote.supplier));
+  await audit(user, { action: 'supplier.awarded', entityType: 'RFQ', entityId: rfqId, entityNumber: gate.number, summary: overrodeTopRank ? `Selected a supplier that was not top-ranked: ${justification.trim()}` : 'Selected the top-ranked supplier', before: { status: rfq.status }, after: { status: 'awarded', quotation: String(quote._id), supplier: String(quote.supplier), overrodeTopRank, justification: justification.trim() } });
   return getComparison(rfqId);
 }

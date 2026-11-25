@@ -11,6 +11,7 @@ import type { UserContext } from '../types/express';
 import { applyMovement } from './inventoryService';
 import { recordSupplierPerformance } from './poService';
 import { notify } from './notifier';
+import { audit } from './auditService';
 
 export interface ReceiptInput {
   purchaseOrderId: string; warehouseId: string; deliveryNote: string; notes: string;
@@ -81,6 +82,7 @@ export async function createReceipt(user: UserContext, input: ReceiptInput) {
     return { receipt, poStatus: nextStatus, poNumber: po.number };
   });
   await notify.goodsReceived(result);
+  await audit(user, { action: 'goods_receipt.recorded', entityType: 'GoodsReceipt', entityId: String(result.receipt._id), entityNumber: result.receipt.number ?? '', summary: `Recorded goods against ${result.poNumber}; order is now ${result.poStatus}`, after: { purchaseOrder: String(result.receipt.purchaseOrder), poStatus: result.poStatus } });
   return { ...present(result.receipt), purchaseOrderStatus: result.poStatus };
 }
 

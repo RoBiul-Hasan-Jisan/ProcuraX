@@ -19,6 +19,8 @@ import {
 import { weeklyTotals } from '../domain/series';
 import { badRequest, conflict, notFound } from '../utils/apiResponse';
 import type { UserContext } from '../types/express';
+import { audit } from './auditService';
+import { notify } from './notifier';
 
 const num = (d: any) => Number(d?.toString() ?? 0);
 const ago = (now: Date, days: number) => new Date(now.getTime() - days * 86_400_000);
@@ -101,7 +103,8 @@ export async function scan(now = new Date()) {
   for (const c of candidates) {
     if (await RiskAlert.exists({ dedupeKey: c.dedupeKey })) continue;
     try {
-      await RiskAlert.create({ ...c, number: await nextNumber('RSK'), detectedAt: now, status: 'open', history: [{ at: now, by: 'System scan', from: '', to: 'open', note: '' }] });
+      const made: any = await RiskAlert.create({ ...c, number: await nextNumber('RSK'), detectedAt: now, status: 'open', history: [{ at: now, by: 'System scan', from: '', to: 'open', note: '' }] });
+      await notify.riskAlertRaised(made && made.number ? made : { ...c, number: 'RSK' });
       created++;
     } catch (e: any) { if (e?.code !== 11000) throw e; } // another scan raised it first
   }
@@ -162,5 +165,6 @@ export async function reviewAlert(user: UserContext, id: string, input: { status
   // The gate on the current status stops two reviewers from both moving the same alert.
   const updated = await RiskAlert.findOneAndUpdate({ _id: id, status: alert.status }, { ...(Object.keys(set).length ? { $set: set } : {}), ...(Object.keys(push).length ? { $push: push } : {}) }, { new: true }).lean();
   if (!updated) throw conflict('This alert was changed by someone else. Reload and try again.');
+  await audit(user, { action: 'risk_alert.reviewed', entityType: 'RiskAlert', entityId: id, entityNumber: alert.number ?? '', summary: input.status ? `Moved ${alert.status} to ${input.status}${note ? `: ${note}` : ''}` : input.assignedTo !== undefined ? 'Changed the reviewer' : `Added a note: ${note}`, before: { status: alert.status }, after: { status: (updated as any).status, assignedTo: (updated as any).assignedToName } });
   return updated;
 }

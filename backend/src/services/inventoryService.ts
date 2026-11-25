@@ -8,6 +8,8 @@ import { signedDelta, stockStatus, shortfallToReorderPoint, type MovementType, t
 import { runInTransaction } from '../utils/transaction';
 import { badRequest, conflict, notFound } from '../utils/apiResponse';
 import type { UserContext } from '../types/express';
+import { audit } from './auditService';
+import { notify } from './notifier';
 
 export interface MovementInput {
   material: string; warehouse: string; type: MovementType; quantity: string; adjustmentDirection?: 'increase' | 'decrease';
@@ -69,21 +71,29 @@ async function assertUsable(materialId: string, warehouseId: string, needActiveW
 /* ---------- manual stock operations ---------- */
 export async function adjustStock(user: UserContext, i: { materialId: string; warehouseId: string; direction: 'increase' | 'decrease'; quantity: string; reason: string }) {
   await assertUsable(i.materialId, i.warehouseId, i.direction === 'increase');
-  return runInTransaction((s) => applyMovement(s, { material: i.materialId, warehouse: i.warehouseId, type: 'adjustment', adjustmentDirection: i.direction, quantity: i.quantity, reason: i.reason, user }));
+  const out = await runInTransaction((s) => applyMovement(s, { material: i.materialId, warehouse: i.warehouseId, type: 'adjustment', adjustmentDirection: i.direction, quantity: i.quantity, reason: i.reason, user }));
+  await audit(user, { action: 'inventory.adjusted', entityType: 'Material', entityId: i.materialId, summary: `Stock ${i.direction} of ${i.quantity}: ${i.reason}`, after: { warehouse: i.warehouseId, direction: i.direction, quantity: i.quantity, balanceAfter: out.balanceAfter } });
+  if (i.direction === 'decrease') await notify.stockDecreased(i.materialId, i.quantity);
+  return out;
 }
 export async function issueStock(user: UserContext, i: { materialId: string; warehouseId: string; quantity: string; reason: string }) {
   await assertUsable(i.materialId, i.warehouseId, false);
-  return runInTransaction((s) => applyMovement(s, { material: i.materialId, warehouse: i.warehouseId, type: 'issue', quantity: i.quantity, reason: i.reason, user }));
+  const out = await runInTransaction((s) => applyMovement(s, { material: i.materialId, warehouse: i.warehouseId, type: 'issue', quantity: i.quantity, reason: i.reason, user }));
+  await audit(user, { action: 'inventory.issued', entityType: 'Material', entityId: i.materialId, summary: `Issued ${i.quantity}: ${i.reason}`, after: { warehouse: i.warehouseId, quantity: i.quantity, balanceAfter: out.balanceAfter } });
+  await notify.stockDecreased(i.materialId, i.quantity);
+  return out;
 }
 export async function transferStock(user: UserContext, i: { materialId: string; fromWarehouseId: string; toWarehouseId: string; quantity: string; reason: string }) {
   if (i.fromWarehouseId === i.toWarehouseId) throw badRequest('Source and destination warehouses must differ');
   await assertUsable(i.materialId, i.fromWarehouseId, false);
   await assertUsable(i.materialId, i.toWarehouseId, true);
-  return runInTransaction(async (s) => {
+  const moved = await runInTransaction(async (s) => {
     const out = await applyMovement(s, { material: i.materialId, warehouse: i.fromWarehouseId, type: 'transfer_out', quantity: i.quantity, reason: i.reason, user });
     const inn = await applyMovement(s, { material: i.materialId, warehouse: i.toWarehouseId, type: 'transfer_in', quantity: i.quantity, reason: i.reason, user });
     return { from: out, to: inn };
   });
+  await audit(user, { action: 'inventory.transferred', entityType: 'Material', entityId: i.materialId, summary: `Transferred ${i.quantity}: ${i.reason}`, after: { from: i.fromWarehouseId, to: i.toWarehouseId, quantity: i.quantity } });
+  return moved;
 }
 
 /* ---------- read models ---------- */

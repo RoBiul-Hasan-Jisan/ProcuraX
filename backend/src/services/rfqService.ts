@@ -9,6 +9,7 @@ import { str } from '../domain/money';
 import { badRequest, conflict, forbidden, notFound } from '../utils/apiResponse';
 import type { UserContext } from '../types/express';
 import { notify } from './notifier';
+import { audit } from './auditService';
 
 export interface RfqInput {
   requisitionId: string;
@@ -73,6 +74,7 @@ export async function createRfq(user: UserContext, input: RfqInput) {
     });
     await PurchaseRequisition.updateOne({ _id: requisition._id }, { $set: { rfq: rfq._id } });
     await notify.rfqPublished(rfq, ids);
+    await audit(user, { action: 'rfq.created', entityType: 'RFQ', entityId: String(rfq._id), entityNumber: rfq.number, summary: `Created RFQ and invited ${ids.length} supplier(s)`, after: { requisition: String(requisition._id), invitedSuppliers: ids.map(String), deadline: input.deadline } });
     return getRfq(user, String(rfq._id));
   } catch (e) {
     await PurchaseRequisition.updateOne({ _id: input.requisitionId, status: 'RFQ Created' }, { $set: { status: 'Approved' } });
@@ -121,6 +123,7 @@ export async function getRfq(user: UserContext, id: string) {
 export async function closeRfq(user: UserContext, id: string) {
   const r = await RFQ.findOneAndUpdate({ _id: id, status: 'open' }, { $set: { status: 'closed' } }, { new: true });
   if (!r) throw conflict('Only an open RFQ can be closed');
+  await audit(user, { action: 'rfq.closed', entityType: 'RFQ', entityId: id, entityNumber: r.number, summary: 'Closed bidding early', before: { status: 'open' }, after: { status: 'closed' } });
   return getRfq(user, id);
 }
 
@@ -133,6 +136,7 @@ export async function cancelRfq(user: UserContext, id: string, reason: string) {
     requisition: r.requisition, action: 'cancelled', stepLabel: `RFQ ${r.number} cancelled`, actor: user.id,
     actorName: user.displayName, actorRole: user.role, comment: reason,
   });
+  await audit(user, { action: 'rfq.cancelled', entityType: 'RFQ', entityId: id, entityNumber: r.number, summary: `Cancelled: ${reason}`, after: { status: 'cancelled' } });
   return getRfq(user, id);
 }
 
