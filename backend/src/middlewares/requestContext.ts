@@ -1,10 +1,12 @@
 import { randomUUID } from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
+import { requestStore } from '../utils/requestStore';
 
 export function requestId(req: Request, res: Response, next: NextFunction) {
   req.requestId = randomUUID();
   res.setHeader('X-Request-Id', req.requestId);
-  next();
+  const ua = req.headers['user-agent'];
+  requestStore.run({ requestId: req.requestId, ip: req.ip ?? null, userAgent: typeof ua === 'string' ? ua.slice(0, 200) : null }, next);
 }
 
 /**
