@@ -1,10 +1,11 @@
 "use client";
 
-import { Bell, ChevronRight, LogOut, Menu, Search } from "lucide-react";
+import { ChevronRight, LogOut, Menu, Search } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { NotificationCenter } from "@/features/notifications/NotificationCenter";
 import { NAVIGATION, isEnabled } from "@/lib/navigation";
 import { cn } from "@/lib/utils/cn";
 
@@ -93,28 +94,6 @@ function GlobalSearch() {
             </li>
           ))}
         </ul>
-      )}
-    </div>
-  );
-}
-
-function NotificationCenter() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useClickOutside(ref, () => setOpen(false));
-  return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)} aria-label="Notifications" aria-expanded={open}
-        className="rounded-md p-2 text-slate-600 hover:bg-steel-100">
-        <Bell className="h-5 w-5" />
-      </button>
-      {open && (
-        <div className="absolute right-0 z-30 mt-1 w-72 rounded-md border border-line bg-white p-4 text-sm shadow-lg">
-          <p className="font-semibold text-navy-900">Notifications</p>
-          <p className="mt-1 text-slate-500">
-            Nothing to show. Event-driven notifications are enabled in Phase 6, once procurement events exist.
-          </p>
-        </div>
       )}
     </div>
   );
