@@ -8,16 +8,19 @@ import { DataTable } from "@/components/shared/DataTable";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { ReceiptDialog } from "@/features/purchasing/ReceiptDialog";
 import { useApi } from "@/hooks/useApi";
 import { formatDate, quantity } from "@/lib/utils/format";
 import type { GoodsReceipt, PurchaseOrder } from "@/types/purchasing";
+import { DocumentsPanel } from "@/features/documents/DocumentsPanel";
 
 export default function GoodsReceiptsPage() {
   const { can } = useAuth();
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
+  const [viewing, setViewing] = useState<GoodsReceipt | null>(null);
   const list = useApi<GoodsReceipt[]>(`/goods-receipts?page=${page}&limit=15`);
   const receivable = useApi<PurchaseOrder[]>(open ? "/purchase-orders?limit=100&status=issued" : null);
   const partial = useApi<PurchaseOrder[]>(open ? "/purchase-orders?limit=100&status=partially_received" : null);
@@ -39,8 +42,14 @@ export default function GoodsReceiptsPage() {
         actions={can("goods_receipts:manage") ? <Button onClick={() => setOpen(true)}><PackageCheck className="h-4 w-4" /> Record receipt</Button> : undefined} />
       <Card>
         <DataTable columns={columns} data={list.data} loading={list.loading} error={list.error} onRetry={list.reload}
-          emptyMessage="No goods receipts yet." pagination={list.pagination} onPage={setPage} />
+          emptyMessage="No goods receipts yet." pagination={list.pagination} onPage={setPage} onRowClick={setViewing} />
       </Card>
+      {viewing && (
+        <Modal title={`Receipt ${viewing.number}`} onClose={() => setViewing(null)}>
+          <p className="mb-3 text-sm text-slate-600">Delivery note: {viewing.deliveryNote || "none recorded"}. Attach the signed delivery note, inspection report or photos here.</p>
+          <DocumentsPanel entityType="goods_receipt" entityId={viewing.id} canUpload={can("goods_receipts:manage")} />
+        </Modal>
+      )}
       {open && <ReceiptDialog orders={orders} onClose={() => setOpen(false)} onDone={() => { setOpen(false); list.reload(); }} />}
     </>
   );

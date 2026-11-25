@@ -16,6 +16,7 @@ import { useAction, useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api/client";
 import { formatDate, money, quantity } from "@/lib/utils/format";
 import type { GoodsReceipt, Invoice, PurchaseOrder } from "@/types/purchasing";
+import { DocumentsPanel } from "@/features/documents/DocumentsPanel";
 
 export default function PurchaseOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -105,6 +106,7 @@ export default function PurchaseOrderDetail() {
               </ul>
             </Card>
           )}
+          <DocumentsPanel entityType="purchase_order" entityId={p.id} title="Documents (delivery notes, certificates)" canUpload={can("purchase_orders:manage") || can("goods_receipts:manage") || can("purchase_orders:view_assigned")} />
         </div>
       </div>
 

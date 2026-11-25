@@ -16,6 +16,7 @@ import { useAction, useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api/client";
 import { formatDate, money, quantity } from "@/lib/utils/format";
 import type { Requisition } from "@/types/procurement";
+import { DocumentsPanel } from "@/features/documents/DocumentsPanel";
 
 const CANCELLABLE = ["Draft", "Submitted", "Under Review", "Approved", "Modification Requested"];
 
@@ -94,6 +95,7 @@ export default function RequisitionDetailPage() {
               {r.approval ? <ApprovalTimeline approval={r.approval} currentStep={r.approval.currentStep} /> : <p className="text-sm text-slate-500">Not submitted yet. The approval chain is created on submission.</p>}
             </div>
           </Card>
+          <DocumentsPanel entityType="requisition" entityId={r.id} />
           <Card>
             <CardHeader title="History" />
             <ul className="space-y-2 p-4 text-sm">

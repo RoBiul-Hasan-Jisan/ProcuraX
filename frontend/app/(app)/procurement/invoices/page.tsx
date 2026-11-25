@@ -15,6 +15,7 @@ import { useAction, useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api/client";
 import { formatDate, money } from "@/lib/utils/format";
 import type { Invoice, PurchaseOrder } from "@/types/purchasing";
+import { DocumentsPanel } from "@/features/documents/DocumentsPanel";
 
 export default function InvoicesPage() {
   const [page, setPage] = useState(1);
@@ -73,6 +74,7 @@ function ReviewDialog({ invoice: i, onClose, onDecided }: { invoice: Invoice; on
       <ul className="mt-3 divide-y divide-line rounded border border-line text-sm">
         {i.lines.map((l) => <li key={l.materialId} className="flex justify-between px-3 py-2"><span>{l.materialName} · {l.quantity} × {money(l.unitPrice)}</span><span>{money(l.lineTotal)}</span></li>)}
       </ul>
+      <div className="mt-3"><DocumentsPanel entityType="invoice" entityId={i.id} canUpload={false} /></div>
       <div className="mt-3">
         {i.match?.ok ? <Notice tone="success">Matches the purchase order and goods accepted.</Notice>
           : i.match ? <Notice tone="error">Does not match: {i.match.issues.join("; ")}. It can be disputed but not verified.</Notice> : null}

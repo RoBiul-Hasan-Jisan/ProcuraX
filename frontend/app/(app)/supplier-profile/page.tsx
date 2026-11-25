@@ -14,6 +14,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 import { useAction, useApi } from "@/hooks/useApi";
 import { apiFetch } from "@/lib/api/client";
 import type { Supplier } from "@/types/procurement";
+import { DocumentsPanel } from "@/features/documents/DocumentsPanel";
 
 const schema = z.object({
   contactPerson: z.string().trim().min(2, "Contact person is required"), email: z.string().min(1, "Email is required").email("Enter a valid email"),
@@ -76,6 +77,7 @@ export default function SupplierProfilePage() {
         </div>
         <ProfileForm supplier={data} onSaved={reload} />
       </Card>
+      <div className="mt-4"><DocumentsPanel entityType="supplier" entityId={data.id} title="Registration and compliance documents" /></div>
     </>
   );
 }

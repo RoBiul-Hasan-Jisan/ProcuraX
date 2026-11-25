@@ -17,6 +17,7 @@ import { useNow } from "@/hooks/useNow";
 import { apiFetch } from "@/lib/api/client";
 import { formatDate, money, quantity } from "@/lib/utils/format";
 import type { Quotation, Rfq } from "@/types/procurement";
+import { DocumentsPanel } from "@/features/documents/DocumentsPanel";
 
 function SupplierQuotationPanel({ rfq }: { rfq: Rfq }) {
   const mine = useApi<Quotation | null>(`/rfqs/${rfq.id}/quotation`);
@@ -24,9 +25,10 @@ function SupplierQuotationPanel({ rfq }: { rfq: Rfq }) {
   if (mine.loading && mine.data === null) return <LoadingState />;
   if (mine.error) return <ErrorState message={mine.error} onRetry={mine.reload} />;
   const open = rfq.status === "open" && new Date(rfq.deadline).getTime() > now;
-  if (open) return <QuotationForm rfq={rfq} existing={mine.data} onSaved={mine.reload} />;
+  if (open) return (<div className="space-y-4"><QuotationForm rfq={rfq} existing={mine.data} onSaved={mine.reload} />{mine.data && <DocumentsPanel entityType="quotation" entityId={mine.data.id} title="Quotation attachments (datasheets, certificates)" />}</div>);
   const q = mine.data;
   return (
+    <>
     <Card>
       <CardHeader title="Your quotation" />
       <div className="space-y-2 p-4 text-sm">
@@ -39,6 +41,8 @@ function SupplierQuotationPanel({ rfq }: { rfq: Rfq }) {
         <p className="text-xs text-slate-500">This RFQ is no longer open for changes.</p>
       </div>
     </Card>
+    {q && <div className="mt-4"><DocumentsPanel entityType="quotation" entityId={q.id} canUpload={false} title="Quotation attachments" /></div>}
+    </>
   );
 }
 
