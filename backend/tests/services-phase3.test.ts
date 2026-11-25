@@ -29,6 +29,8 @@ import * as po from '../src/services/poService';
 import * as receipts from '../src/services/receiptService';
 import * as inventory from '../src/services/inventoryService';
 import * as invoices from '../src/services/invoiceService';
+import { audit } from '../src/services/auditService';
+import { notify } from '../src/services/notifier';
 
 const m = (x: unknown) => x as jest.Mock;
 const user = (over: Record<string, unknown> = {}): any => ({ id: oid('u1'), displayName: 'User One', role: 'inventory_officer', supplierId: null, permissions: [], ...over });
@@ -45,6 +47,29 @@ beforeEach(() => {
   for (const mdl of mocks) for (const fn of Object.values(mdl)) (fn as jest.Mock).mockReset();
   m(Warehouse.findById).mockReturnValue(chain({ _id: WH, active: true }));
   m(Material.findById).mockReturnValue(chain({ _id: MAT }));
+});
+
+describe('audit and notification hooks on stock changes', () => {
+  it('a refused over-issue records no audit entry and sends no low-stock notice', async () => {
+    (audit as jest.Mock).mockClear(); ((notify as any).stockDecreased as jest.Mock).mockClear();
+    m(StockLevel.findOneAndUpdate).mockResolvedValue(null);
+    await expect(inventory.issueStock(user(), { materialId: MAT, warehouseId: WH, quantity: '10', reason: 'melt shop' })).rejects.toBeDefined();
+    expect(audit).not.toHaveBeenCalled(); expect((notify as any).stockDecreased).not.toHaveBeenCalled();
+  });
+  it('a successful issue is audited with who, what and the new balance, and checks stock levels', async () => {
+    (audit as jest.Mock).mockClear(); ((notify as any).stockDecreased as jest.Mock).mockClear();
+    m(StockLevel.findOneAndUpdate).mockResolvedValue({ quantity: D('90') }); m(StockMovement.create).mockResolvedValue([{}]);
+    await inventory.issueStock(user(), { materialId: MAT, warehouseId: WH, quantity: '10', reason: 'melt shop' });
+    expect((audit as jest.Mock).mock.calls[0][1]).toMatchObject({ action: 'inventory.issued', entityType: 'Material', entityId: MAT, after: { quantity: '10', balanceAfter: '90.000' } });
+    expect((notify as any).stockDecreased).toHaveBeenCalledWith(MAT, '10');
+  });
+  it('an increase adjustment is audited but cannot raise a low-stock notice', async () => {
+    (audit as jest.Mock).mockClear(); ((notify as any).stockDecreased as jest.Mock).mockClear();
+    m(StockLevel.findOneAndUpdate).mockResolvedValue({ quantity: D('110') }); m(StockMovement.create).mockResolvedValue([{}]);
+    await inventory.adjustStock(user(), { materialId: MAT, warehouseId: WH, direction: 'increase', quantity: '10', reason: 'recount' });
+    expect((audit as jest.Mock).mock.calls[0][1].action).toBe('inventory.adjusted');
+    expect((notify as any).stockDecreased).not.toHaveBeenCalled();
+  });
 });
 
 describe('stock ledger', () => {
