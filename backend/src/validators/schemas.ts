@@ -189,3 +189,27 @@ export const riskReviewBody = z.object({
   note: z.string().trim().max(2000).optional(),
 }).refine((v) => v.status !== undefined || v.assignedTo !== undefined || !!v.note, { message: 'Provide a status, an assignee or a note' });
 export const assistantBody = z.object({ question: z.string().trim().min(3, 'Ask a full question').max(500) });
+
+/* ---------- Phase 6: notifications, audit ---------- */
+export const notificationListQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20),
+  unreadOnly: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+});
+export const auditListQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(25),
+  entityType: z.string().max(40).optional(), entityId: z.string().max(60).optional(), action: z.string().max(60).optional(), actor: z.string().max(60).optional(),
+  from: z.coerce.date().optional(), to: z.coerce.date().optional(), search: z.string().trim().max(100).optional(),
+});
+
+/* ---------- Phase 6: documents ---------- */
+export const documentUploadFields = z.object({ entityType: z.enum(['supplier', 'quotation', 'requisition', 'purchase_order', 'goods_receipt', 'invoice']), entityId: objectId, description: z.string().trim().max(300).optional() });
+export const documentListQuery = z.object({ entityType: z.enum(['supplier', 'quotation', 'requisition', 'purchase_order', 'goods_receipt', 'invoice']), entityId: objectId });
+
+/* ---------- Phase 6: reports ---------- */
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD').refine((s) => !Number.isNaN(Date.parse(`${s}T00:00:00Z`)), 'Not a valid date');
+export const reportQuery = z.object({
+  from: isoDay.optional(), to: isoDay.optional(), departmentId: objectId.optional(), supplierId: objectId.optional(), materialId: objectId.optional(),
+  categoryId: objectId.optional(), warehouseId: objectId.optional(), poStatus: z.enum(['draft', 'issued', 'partially_received', 'received', 'closed', 'cancelled']).optional(),
+}).refine((q) => !q.from || !q.to || q.from <= q.to, { message: 'The start date must not be after the end date', path: ['from'] });
+export const reportExportQuery = z.object({ format: z.enum(['csv', 'xlsx', 'pdf']).default('csv') });
+export const reportKeyParam = z.object({ key: z.string().regex(/^[a-z-]{3,40}$/) });
