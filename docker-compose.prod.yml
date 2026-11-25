@@ -1,0 +1,102 @@
+# Production-style stack: MongoDB (replica set), ML service, backend API, frontend.
+#   cp .env.production.example .env   # fill it in
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+# Development keeps using docker-compose.yml (MongoDB only) with `npm run dev` for the apps.
+name: steelprocure
+
+x-hardening: &hardening
+  restart: unless-stopped
+  init: true
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    init: true
+    # Transactions (stock receipts, issues, transfers) need a replica set. The member is advertised as "mongo" so
+    # the other containers can reach it by service name. MongoDB is NOT published to the host.
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: >
+        mongosh --quiet --eval
+        "try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}).ok }"
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 15s
+    networks: [internal]
+
+  ml:
+    build: ./ml
+    <<: *hardening
+    environment:
+      ML_INTERNAL_KEY: ${ML_INTERNAL_KEY:?Set ML_INTERNAL_KEY to a long random secret}
+    networks: [internal]            # not published: only the backend calls it
+
+  backend:
+    build: ./backend
+    <<: *hardening
+    depends_on:
+      mongo: { condition: service_healthy }
+      ml: { condition: service_started }
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      MONGODB_URI: mongodb://mongo:27017/steelprocure?replicaSet=rs0
+      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL to the public https origin of the web app}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:?Set FIREBASE_CLIENT_EMAIL}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:?Set FIREBASE_PRIVATE_KEY}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      ML_SERVICE_URL: http://ml:8000
+      ML_INTERNAL_KEY: ${ML_INTERNAL_KEY:?Set ML_INTERNAL_KEY}
+      STORAGE_DRIVER: local
+      UPLOAD_DIR: /app/uploads
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+    volumes:
+      - uploads_data:/app/uploads   # confidential documents: back this up, never commit it
+    ports:
+      - "${PUBLISH_ADDRESS:-127.0.0.1}:5000:5000"
+    networks: [internal, edge]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL (public URL of the API, ending in /api/v1)}
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY:?Set NEXT_PUBLIC_FIREBASE_API_KEY}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:?Set NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID:?Set NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:?Set NEXT_PUBLIC_FIREBASE_APP_ID}
+    <<: *hardening
+    depends_on:
+      backend: { condition: service_healthy }
+    ports:
+      - "${PUBLISH_ADDRESS:-127.0.0.1}:3000:3000"
+    networks: [edge]
+
+  # Demo data, on request only:  docker compose -f docker-compose.prod.yml --profile tools run --rm seed
+  # Seeds synthetic DEMO records and is safe to run twice. Do not run it against a real company database.
+  seed:
+    profiles: ["tools"]
+    build:
+      context: ./backend
+      target: tools
+    depends_on:
+      mongo: { condition: service_healthy }
+    env_file: .env
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/steelprocure?replicaSet=rs0
+    networks: [internal]
+
+networks:
+  internal: { internal: true }   # no outbound internet for MongoDB or the ML service
+  edge: {}
+
+volumes:
+  mongo_data:
+  uploads_data:
