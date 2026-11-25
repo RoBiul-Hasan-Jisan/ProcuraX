@@ -12,6 +12,8 @@ const schema = z.object({
   FIREBASE_CLIENT_EMAIL: z.string().default(''),
   FIREBASE_PRIVATE_KEY: z.string().default(''),
   ML_SERVICE_URL: z.string().default('http://localhost:8000'),
+  ML_INTERNAL_KEY: z.string().default(''),
+  ML_TIMEOUT_MS: z.coerce.number().int().positive().default(20000),
   // Optional: the email that is auto-provisioned as System Administrator on first login.
   BOOTSTRAP_ADMIN_EMAIL: z.string().default(''),
 });

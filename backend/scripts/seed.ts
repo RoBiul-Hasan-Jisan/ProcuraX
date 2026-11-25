@@ -18,6 +18,14 @@ import { ROLES, ROLE_LABELS, type RoleName } from '../src/utils/permissions';
 import { Warehouse } from '../src/models/Warehouse';
 import { StockLevel } from '../src/models/StockLevel';
 import { StockMovement } from '../src/models/StockMovement';
+import { FinishedProduct } from '../src/models/FinishedProduct';
+import { BillOfMaterials } from '../src/models/BillOfMaterials';
+import { ProductionPlan } from '../src/models/ProductionPlan';
+import { StockReservation } from '../src/models/StockReservation';
+import { nextNumber } from '../src/models/Counter';
+import { toD128p } from '../src/domain/money';
+import { DEMO_BOMS, DEMO_PLANS, DEMO_PRODUCTS, DEMO_RESERVATIONS, LEAD_TIME_BY_CATEGORY, SUPPLIER_CAPACITY, consumptionHistory, priceHistory } from './demoData';
+import { PriceObservation } from '../src/models/PriceObservation';
 import { DEMO_CATEGORIES, DEMO_MATERIALS, DEMO_SUPPLIERS, DEMO_SUPPLIER_USER_LINKS, DEMO_WAREHOUSES, openingStock } from './demoData';
 
 const DEPARTMENTS = [
@@ -84,6 +92,7 @@ async function main() {
           sku: mat.sku, name: mat.name, category: catByCode.get(mat.category)._id, description: `DEMO: ${mat.name}`, unit: mat.unit, technicalSpecs: mat.specs,
           minimumStock: mat.min, safetyStock: mat.safety, reorderPoint: mat.reorder, averagePurchasePrice: toD128(mat.avgPrice), currency: 'BDT',
           preferredSuppliers: preferred, active: true, isDemoData: true,
+          leadTimeDays: LEAD_TIME_BY_CATEGORY[mat.category], supplierCapacity: SUPPLIER_CAPACITY[mat.sku] != null ? toD128(String(SUPPLIER_CAPACITY[mat.sku])) : null,
         },
       },
       { upsert: true },
@@ -101,10 +110,57 @@ async function main() {
     const wh = whByCode.get(warehouse);
     if (!doc || !wh) continue;
     if (await StockMovement.exists({ material: doc._id, warehouse: wh._id, type: 'opening_balance' })) continue;
-    const level = await StockLevel.findOneAndUpdate({ material: doc._id, warehouse: wh._id }, { $inc: { quantity: toD128(quantity) }, $set: { isDemoData: true } }, { upsert: true, new: true });
-    await StockMovement.create({ material: doc._id, warehouse: wh._id, type: 'opening_balance', delta: toD128(quantity), balanceAfter: level!.quantity, reason: 'DEMO opening balance', performedByName: 'Seed script', isDemoData: true });
+    // Ledger: an opening balance 370 days ago of (current stock + everything consumed since), then 52 weekly issues to production.
+    // The running balance never goes negative and ends exactly at the intended stock level.
+    const hist = consumptionHistory(mat).sort((a, b) => b.daysAgo - a.daysAgo);
+    const consumed = hist.reduce((a, x) => a + x.quantity, 0);
+    const at = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000);
+    let bal = Number(quantity) + consumed;
+    await StockMovement.create({ material: doc._id, warehouse: wh._id, type: 'opening_balance', delta: toD128(String(bal)), balanceAfter: toD128(String(bal)), reason: 'DEMO opening balance', performedByName: 'Seed script', isDemoData: true, createdAt: at(370) });
+    for (const h of hist) {
+      bal -= h.quantity;
+      await StockMovement.create({ material: doc._id, warehouse: wh._id, type: 'issue', delta: toD128(String(-h.quantity)), balanceAfter: toD128(String(bal)), reason: 'DEMO consumption to production', performedByName: 'Seed script', isDemoData: true, createdAt: at(h.daysAgo) });
+    }
+    await StockLevel.findOneAndUpdate({ material: doc._id, warehouse: wh._id }, { $set: { quantity: toD128(quantity), isDemoData: true } }, { upsert: true, new: true });
     opened++;
   }
+
+  // Phase 4: products, BOMs, plans, reservations. Each is keyed (code / product+version / externalRef) so re-running changes nothing.
+  const prodByCode = new Map<string, any>();
+  for (const p of DEMO_PRODUCTS) prodByCode.set(p.code, await FinishedProduct.findOneAndUpdate({ code: p.code }, { $set: { ...p, active: true, isDemoData: true } }, { upsert: true, new: true }));
+  const matBySku = new Map<string, any>((await Material.find({ sku: { $in: DEMO_MATERIALS.map((m) => m.sku) } }).lean()).map((m: any) => [m.sku, m]));
+  let bomsMade = 0;
+  for (const b of DEMO_BOMS) {
+    const product = prodByCode.get(b.product);
+    if (await BillOfMaterials.exists({ product: product._id, version: b.version })) continue;
+    await BillOfMaterials.create({
+      number: await nextNumber('BOM'), product: product._id, version: b.version, status: b.status, effectiveFrom: new Date(b.effectiveFrom), notes: b.notes, isDemoData: true,
+      items: b.items.map((i) => i.sku
+        ? { material: matBySku.get(i.sku)._id, name: matBySku.get(i.sku).name, sku: i.sku, unit: matBySku.get(i.sku).unit, quantity: toD128p(i.quantity, 6), wastagePercent: toD128p(i.wastage, 2) }
+        : { subProduct: prodByCode.get(i.product!)._id, name: prodByCode.get(i.product!).name, sku: i.product, unit: prodByCode.get(i.product!).unit, quantity: toD128p(i.quantity, 6), wastagePercent: toD128p(i.wastage, 2) }),
+    });
+    bomsMade++;
+  }
+  // Phase 5: a year of unit-price observations per material, keyed so a re-run adds nothing.
+  const priceOps = DEMO_MATERIALS.flatMap((mat) => priceHistory(mat).map((p, i) => ({
+    updateOne: { filter: { externalRef: `DEMO-PRICE-${mat.sku}-${i}` }, update: { $setOnInsert: { material: matBySku.get(mat.sku)._id, unitPrice: toD128(p.price), observedAt: new Date(Date.now() - p.daysAgo * 86_400_000), source: 'demo', isDemoData: true } }, upsert: true },
+  })));
+  const priceResult = await PriceObservation.bulkWrite(priceOps);
+  console.log(`Price history: ${priceResult.upsertedCount} new observation(s) of ${priceOps.length}.`);
+  const planByRef = new Map<string, any>();
+  for (const p of DEMO_PLANS) {
+    let doc = await ProductionPlan.findOne({ externalRef: p.ref });
+    if (!doc) {
+      const start = new Date(Date.now() + p.startInDays * 86_400_000);
+      start.setUTCHours(0, 0, 0, 0); // plans start at midnight UTC so MRP dates are whole days
+      doc = await ProductionPlan.create({ number: await nextNumber('PP'), product: prodByCode.get(p.product)._id, quantity: toD128(p.quantity), unit: prodByCode.get(p.product).unit, startDate: start, endDate: new Date(start.getTime() + p.durationDays * 86_400_000), status: p.status, notes: p.notes, externalRef: p.ref, isDemoData: true });
+    }
+    planByRef.set(p.ref, doc);
+  }
+  for (const r of DEMO_RESERVATIONS) {
+    await StockReservation.updateOne({ externalRef: r.ref }, { $setOnInsert: { material: matBySku.get(r.sku)._id, quantity: toD128(r.quantity), reason: r.reason, productionPlan: r.plan ? planByRef.get(r.plan)._id : null, status: 'active', createdByName: 'Seed script', isDemoData: true } }, { upsert: true });
+  }
+  console.log(`Planning: ${DEMO_PRODUCTS.length} products, ${bomsMade} new BOMs, ${DEMO_PLANS.length} plans, ${DEMO_RESERVATIONS.length} reservations.`);
 
   const seedUser = async (uid: string, email: string, role: RoleName, extra: Record<string, unknown> = {}) => {
     await User.updateOne(

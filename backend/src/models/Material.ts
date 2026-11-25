@@ -12,6 +12,9 @@ const schema = new Schema(
     minimumStock: { type: Number, default: 0, min: 0 },
     safetyStock: { type: Number, default: 0, min: 0 },
     reorderPoint: { type: Number, default: 0, min: 0 },
+    /** Planning parameters used by MRP. leadTimeDays 0 = not set (the MRP default is used and flagged). */
+    leadTimeDays: { type: Number, default: 0, min: 0, max: 730 },
+    supplierCapacity: { type: Schema.Types.Decimal128, default: null },
     averagePurchasePrice: { type: Schema.Types.Decimal128, default: null },
     currency: { type: String, default: 'BDT' },
     active: { type: Boolean, default: true, index: true },

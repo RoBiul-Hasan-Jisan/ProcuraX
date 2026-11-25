@@ -90,3 +90,8 @@ export function computeQuotationCost(input: {
   const taxAmount = materialCost.mul(dec(input.taxRatePercent)).div(100).toDecimalPlaces(2);
   return { lines, materialCost, transportCost, additionalCharges, taxAmount, totalLandedCost: materialCost.plus(transportCost).plus(additionalCharges).plus(taxAmount) };
 }
+
+/** Like toD128 but with a caller-chosen precision (BOM quantities per unit need up to 6 decimals, e.g. 0.000800 MT of refractory per MT). */
+export function toD128p(value: DecimalInput, places: number): Types.Decimal128 {
+  return Types.Decimal128.fromString(dec(value).toDecimalPlaces(places).toFixed());
+}

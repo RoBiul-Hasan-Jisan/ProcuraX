@@ -57,6 +57,7 @@ export const PERMISSIONS = [
   'production:manage',
   'forecasting:view',
   'intelligence:view',
+  'risks:review',
   'reports:view',
   'reports:financial',
   'notifications:view',
@@ -71,7 +72,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     'dashboard:view', 'materials:view', 'requisitions:view', 'requisitions:approve', 'rfq:manage', 'quotations:compare',
     'purchase_orders:manage', 'purchase_orders:view', 'suppliers:view', 'suppliers:manage',
     'suppliers:evaluate', 'inventory:view', 'mrp:view', 'mrp:run', 'forecasting:view',
-    'intelligence:view', 'reports:view', 'reports:financial', 'notifications:view',
+    'intelligence:view', 'risks:review', 'reports:view', 'reports:financial', 'notifications:view',
   ],
   department_manager: [
     'dashboard:view', 'materials:view', 'requisitions:view', 'requisitions:create', 'requisitions:approve',
@@ -100,4 +101,4 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
 };
 
 /** Bump when DEFAULT_ROLE_PERMISSIONS gains permissions; startup merges the additions into stored roles. */
-export const DEFAULTS_VERSION = 2;
+export const DEFAULTS_VERSION = 3;

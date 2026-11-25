@@ -17,7 +17,7 @@ export interface NavSection {
   items: NavItem[];
 }
 
-export const CURRENT_PHASE = 3;
+export const CURRENT_PHASE = 5;
 
 export const NAVIGATION: NavSection[] = [
   { label: "Overview", icon: Gauge, items: [{ label: "Overview", href: "/overview", permissions: [], phase: 1 }] },
@@ -57,7 +57,7 @@ export const NAVIGATION: NavSection[] = [
     items: [
       { label: "Supplier Directory", href: "/suppliers", permissions: ["suppliers:view"], phase: 2 },
       { label: "My Supplier Profile", href: "/supplier-profile", permissions: ["suppliers:self"], phase: 2 },
-      { label: "Supplier Evaluation", href: "/suppliers/evaluation", permissions: ["suppliers:evaluate"], phase: 5 },
+      { label: "Supplier Evaluation", href: "/suppliers/evaluation", permissions: ["suppliers:evaluate"], phase: 6 },
       { label: "Supplier Performance", href: "/suppliers/performance", permissions: ["suppliers:view"], phase: 5 },
     ],
   },
@@ -65,7 +65,6 @@ export const NAVIGATION: NavSection[] = [
     label: "Intelligence", icon: Brain,
     items: [
       { label: "AI Procurement Assistant", href: "/intelligence/assistant", permissions: ["intelligence:view"], phase: 5 },
-      { label: "Supplier Intelligence", href: "/intelligence/suppliers", permissions: ["intelligence:view"], phase: 5 },
       { label: "Risk Detection", href: "/intelligence/risks", permissions: ["intelligence:view"], phase: 5 },
       { label: "Forecast Analytics", href: "/intelligence/forecasts", permissions: ["intelligence:view"], phase: 5 },
     ],

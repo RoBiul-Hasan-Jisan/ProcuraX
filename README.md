@@ -4,19 +4,62 @@
 
 An AI-assisted e-procurement, inventory and MRP platform for steel manufacturing. This is an **independent demo prototype** built on synthetic data. It is not affiliated with any steel manufacturer and uses no confidential or proprietary data or branding.
 
-## Status: Phase 3 (Purchase and Inventory) complete
+## Status: Phase 5 (AI and Analytics) complete
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Monorepo, Express + MongoDB, Firebase auth, RBAC, app shell, dashboard foundation | **Done** |
 | 2 | Materials, suppliers, requisitions, approvals, RFQs, quotations, comparison | **Done** (no live-DB test yet) |
 | 3 | Purchase orders, goods receipt, invoices, warehouses, stock movements | **Done** (transactions untested on a live DB) |
-| 4 | Production plans, BOM, MRP engine | Not started |
-| 5 | Supplier scoring, forecasting (Python ML), risk detection, assistant | Not started |
+| 4 | Production plans, BOM, MRP engine, reorder recommendations | **Done** (not run on a live DB or in a browser) |
+| 5 | Demand and price forecasting (Python ML), risk detection, data-grounded assistant, supplier performance | **Done** (not run on a live DB or in a browser) |
 | 6 | Notifications, audit logs, reports, uploads | Not started |
 | 7 | Docker deployment, health checks, backup docs | Not started |
 
 Navigation items for later phases are visible (per role) but disabled and tagged with their phase. The overview dashboard shows real database counts only; procurement KPIs are explicitly marked "not available yet" rather than showing placeholder numbers.
+
+### What Phase 5 includes
+
+- **ML service (`ml/`, Python)**: a separate FastAPI service. The Express backend sends it a time series and gets a forecast back; it never touches the database, inventory or approvals. Requests need the shared `X-Internal-Key`. If the service is down, forecast buttons report it as unavailable and nothing else is affected.
+- **Demand forecasting**: weekly consumption (stock issued to production) is forecast over 7, 30, 60 and 90 days. Models: moving average, simple exponential smoothing, random forest and XGBoost. Each is scored by **rolling-origin backtesting** (one week ahead, expanding window, no shuffling, never trained on the week it predicts) and the lowest RMSE wins. MAE, RMSE and MAPE are shown per model; MAPE is shown as "n/a" when any test actual is zero. Models that need more history than exists are listed as skipped with the reason.
+- **Price trend**: a linear trend of unit price over time with an 80% prediction interval and percentage change. Needs 6 observations over 60 days.
+- **Risk detection**: ten explainable rules (below) raise alerts that a person acknowledges, investigates, resolves or dismisses. Closing needs a written note; history is kept; alerts can be assigned to a reviewer who holds `risks:review`.
+- **Assistant**: classifies a question with keyword rules, runs a fixed backend query, and returns a card with the answer, a table, the records used, how it was calculated, caveats, and a label saying whether it is actual data, a forecast, or unavailable. No external AI service and no free-form queries. Spend questions need `reports:financial`.
+- **Supplier performance**: recorded on-time and quality history; unproven suppliers (fewer than 5 orders) show no score.
+- **Pages**: Demand Forecasting, Forecast Analytics, Risk Detection, AI Procurement Assistant, Supplier Performance.
+
+#### Phase 5 rules and formulas
+
+- **Weekly series**: 7-day buckets ending on the forecast date; days with no record count as zero; a partly covered oldest bucket is dropped; records after the end date are ignored.
+- **Forecast total** for a horizon sums the weekly forecasts, scaling the last partial week. **Range** = point +/- 1.2816 x residual std (x sqrt(weeks) for totals), a normal approximation from backtest errors. It is indicative, not a guarantee.
+- **Eligibility** (weeks of history): moving average 6, exponential smoothing 8, random forest 20, XGBoost 30. Fewer than 8 weeks, or no consumption, returns "insufficient data" and no numbers.
+- **Robust z-score** = 0.6745 x (x - median) / MAD over at least 8 baseline points; none when MAD is 0.
+- **Risk rules and thresholds**: abnormal consumption (latest week, |z| >= 3.5; high at 6); price increase (latest vs median of previous 12, medium 10%, high 20%, critical 40%); high quotation (vs the material's average price, 20/35/60%); duplicate requisition (same department, same lines and quantities, within 7 days); duplicate invoice (same supplier and number ignoring format, or same total and date); unusual adjustment (|change| vs prior balance, 20% medium, 50% high); delayed PO (1-3 days low, 4-14 medium, 15-30 high, 31+ critical); supplier quality (last 3 receipts' acceptance at least 10 points below earlier and under 95%); supplier delivery (on-time under 80%/60% with at least 5 orders); repeated mismatches (3+ failed matches in 90 days).
+- **No accusations**: alert text describes a pattern and a next step; it never asserts wrongdoing. A re-scan never reopens or duplicates an alert (each condition has a stable key).
+- **Model version** `2026.11-1` is stored with every forecast. Models are re-fitted on each request rather than saved as artifacts.
+
+Run the ML service: `cd ml && ML_INTERNAL_KEY=<secret> python3 main.py` and set the same `ML_INTERNAL_KEY` and `ML_SERVICE_URL` in `backend/.env`. Tests: `cd ml && python3 -m pytest`.
+
+### What Phase 4 includes
+
+- **Finished products and bills of materials**: versioned BOMs (draft, active, obsolete) with an effective date. Only draft BOMs can be edited; activating one runs a circular-reference check. Items are raw materials or in-house sub-products (multi-level, max depth 6). Quantities are per 1 unit of the product, up to 6 decimals.
+- **Production plans**: planned, confirmed, in progress, completed, cancelled. Planned, confirmed and in-progress plans count toward MRP.
+- **Stock reservations**: hold stock for a plan or for another purpose; checked against unreserved stock. Backend routes exist, but there is no UI for them yet.
+- **MRP run**: choose plans and a horizon, run, and the inputs and results are saved. Includes a material-wise table, planned orders with release and arrival dates, an explanation per material, previous runs, CSV export and PDF export (browser print).
+- **Reorder recommendations**: from consumption history, independent of production plans.
+- **Settings**: horizon, default lead time, urgency thresholds and reorder policy under `/settings/mrp`.
+
+#### Phase 4 formulas and rules
+
+- **Gross requirement** = plan quantity x BOM quantity. **Adjusted** = gross x (1 + wastage% / 100). A sub-product's adjusted quantity becomes the parent quantity for its own BOM.
+- **BOM selection**: active BOMs effective on or before the plan start date; newest effective date wins, then highest version. A missing BOM is reported, never guessed.
+- **Available** = on hand - reserved for purposes other than a selected plan. Reservations tied to a plan in the run are not subtracted twice.
+- **Netting** is time-phased and lot-for-lot: demands are taken in date order; available stock and scheduled receipts (open PO quantity due on or before the need date) cover them first; any shortfall plus safety stock becomes a planned order, rounded up to 3 dp.
+- **Dates**: release = need date - lead time, never earlier than today; arrival = release + lead time. If the arrival is after the need date the order is flagged late with days late. Lead time is the material's own value, else the default in settings.
+- **Supplier capacity**: a planned order above a material's `supplierCapacity` is flagged.
+- **Urgency**: high if the need date is within 3 days (or late), medium within 10, else low. Thresholds are configurable.
+- **Reorder point** = average daily use x lead time + safety stock. Order when (available + on order) <= reorder point. Suggested quantity = reorder point + coverage days x daily use - position (defaults: 90-day look-back, 30-day coverage). With no consumption history the basis is shown as "configured".
+- **Demo data**: 4 products (including an in-house billet), 5 BOMs (including two versions of one product and a multi-level one), 4 plans (one short-notice, one beyond the default horizon), 2 reservations, lead times by category, supplier capacities for 3 materials, and 13 weeks of consumption history written as ledger entries that end exactly at current stock.
 
 ### What Phase 3 includes
 
@@ -92,7 +135,7 @@ cd backend
 DEMO_UID_SYSTEM_ADMIN=<firebase uid> DEMO_UID_PROCUREMENT_MANAGER=<uid> npm run seed
 ```
 
-The seed is idempotent, marks every record `isDemoData`, and skips roles whose `DEMO_UID_<ROLE>` is not set. It seeds 5 departments, 3 warehouses with opening stock (chosen so every alert level appears; written once, never doubled on re-run), 10 categories, 36 materials, 10 suppliers (7 proven, 1 unproven with 2 orders, 1 unverified, 1 blocked) and demo user profiles. Supplier-role logins link to supplier records via `DEMO_UID_SUPPLIER` (SUP-0001), `DEMO_UID_SUPPLIER_2` (SUP-0002) and `DEMO_UID_SUPPLIER_3` (SUP-0003). Demo data lives in `backend/scripts/demoData.ts` and is covered by tests.
+The seed is idempotent, marks every record `isDemoData`, and skips roles whose `DEMO_UID_<ROLE>` is not set. It also seeds the Phase 4 planning data described above and, for Phase 5, 52 weeks of consumption history written as ledger entries and 14 price observations per material (one material has a planted price jump and one a planted consumption spike so risk detection has something to find). It seeds 5 departments, 3 warehouses with opening stock (chosen so every alert level appears; written once, never doubled on re-run), 10 categories, 36 materials, 10 suppliers (7 proven, 1 unproven with 2 orders, 1 unverified, 1 blocked) and demo user profiles. Supplier-role logins link to supplier records via `DEMO_UID_SUPPLIER` (SUP-0001), `DEMO_UID_SUPPLIER_2` (SUP-0002) and `DEMO_UID_SUPPLIER_3` (SUP-0003). Demo data lives in `backend/scripts/demoData.ts` and is covered by tests.
 
 ## Tests
 
@@ -108,15 +151,21 @@ cd frontend && npm test && npm run typecheck && npm run lint
 - `ml/` Python ML service (scaffold only until Phase 5).
 - Roles: system_admin, procurement_manager, department_manager, inventory_officer, finance_officer, supplier, management.
 
-## Known limitations (through Phase 3)
+## Known limitations (through Phase 5)
 
 - Backend tests mock Firebase Admin and the user repository. **Nothing has yet been run against a live MongoDB or a real Firebase project** in this build; verify with the quick start above.
 - **Transactions have not been run against a real MongoDB.** The tests mock the transaction helper, so they prove the ordering and the guard conditions, not rollback behaviour. Run the quick start with the replica-set container and try a receipt, an over-issue and two concurrent receipts before relying on it.
 - Not built yet: payments against verified invoices, returns of rejected goods to the supplier, supplier-side PO acknowledgement, PO amendments, attachments (Phase 6).
 - Cancelling an issued PO leaves its requisition in Ordered; there is no reopen flow yet.
 - Stock overview is computed in the API per request (fine for demo scale, not for very large catalogues).
-- Backend: 223 tests (domain rules, route permissions/validation, mocked-model services, demo data). Atomic-gate ordering and unique indexes are untested against a real MongoDB; a failure between dependent writes could leave partial state.
-- Frontend: 70 tests (navigation, guards, forms, decimal maths, comparison, approvals). Pages such as settings and overview have little direct coverage.
+- Phase 5: nothing has run against a live MongoDB or in a browser. The Python service and the Node client **were** run together over HTTP once on seeded-shape data (all four models evaluated, wrong key refused), but the backend services that save forecasts and alerts were tested only with mocked models.
+- Phase 5 not built: Isolation Forest (anomaly detection is statistical and rule-based), saved model artifacts, scheduled forecast or scan jobs (both run on demand), a local language model, notifications for alerts (Phase 6), and Supplier Evaluation (weights editor, Phase 6).
+- Phase 5: alerts for conditions that later clear (for example a delayed PO that arrives) stay open until a person closes them. Procurement spend in the assistant is committed spend from issued POs, not payments. Price history comes from recorded observations and issued POs; the demo data supplies a year of observations.
+- Phase 5: forecasts use short, synthetic demo history; accuracy figures describe that data only. A forecast is a prediction and can be wrong.
+- Phase 4: the MRP service, seed and every Phase 3 transaction have not run against a live MongoDB. The UI has never been opened in a browser.
+- Phase 4: an in-progress plan counts at its full quantity (no credit for work already issued). Two simultaneous reservations can both pass the free-stock check. PDF export is browser print-to-PDF, not server-generated. Consumption history in the seed is about 90 days; a full year arrives with forecasting in Phase 5.
+- Backend: 448 tests (domain rules, route permissions/validation, mocked-model services, demo data). Atomic-gate ordering and unique indexes are untested against a real MongoDB; a failure between dependent writes could leave partial state.
+- Frontend: 114 tests (11 files); ML: 18 pytest tests (navigation, guards, forms, decimal maths, comparison, approvals). Pages such as settings and overview have little direct coverage.
 - No end-to-end test of supplier isolation against a running server.
 - The Next.js build was verified; the app itself was not exercised in a browser.
 - Express 5, Mongoose 9, TypeScript 7 and TanStack Table 8 are used. Tests transpile with SWC; type-checking is done by `tsc`.

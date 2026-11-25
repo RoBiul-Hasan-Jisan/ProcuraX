@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { isEnabled, visibleNavigation } from "@/lib/navigation";
 
@@ -32,11 +34,28 @@ describe("role-based navigation", () => {
   });
 
   it("only enables pages that exist in the current phase", () => {
-    const all = visibleNavigation(canWith(["users:manage", "requisitions:view", "purchase_orders:view", "production:manage"])).flatMap((s) => s.items);
+    const all = visibleNavigation(canWith(["users:manage", "requisitions:view", "purchase_orders:view", "production:manage", "forecasting:view"])).flatMap((s) => s.items);
     expect(isEnabled(all.find((i) => i.label === "User Management")!)).toBe(true);
     expect(isEnabled(all.find((i) => i.label === "Purchase Requisitions")!)).toBe(true); // Phase 2
     expect(isEnabled(all.find((i) => i.label === "Purchase Orders")!)).toBe(true); // Phase 3
-    expect(isEnabled(all.find((i) => i.label === "Production Planning")!)).toBe(false); // Phase 4
+    expect(isEnabled(all.find((i) => i.label === "Production Planning")!)).toBe(true); // Phase 4
+    expect(isEnabled(all.find((i) => i.label === "Demand Forecasting")!)).toBe(true); // Phase 5
+  });
+
+  it("Phase 5 pages are enabled, and pages that do not exist yet stay disabled", () => {
+    const all = visibleNavigation(canWith(["intelligence:view", "suppliers:view", "suppliers:evaluate", "reports:view", "notifications:view"])).flatMap((s) => s.items);
+    for (const l of ["AI Procurement Assistant", "Risk Detection", "Forecast Analytics", "Supplier Performance"]) expect(isEnabled(all.find((i) => i.label === l)!)).toBe(true);
+    expect(isEnabled(all.find((i) => i.label === "Supplier Evaluation")!)).toBe(false); // no page yet: Phase 6
+    expect(isEnabled(all.find((i) => i.label === "Reports")!)).toBe(false);
+    expect(all.map((i) => i.label)).not.toContain("Supplier Intelligence"); // folded into Supplier Performance
+  });
+
+  it("every enabled navigation page exists in the app", () => {
+    const all = visibleNavigation(() => true).flatMap((s) => s.items).filter(isEnabled);
+    for (const i of all) {
+      const dir = i.href === "/overview" ? "overview" : i.href.replace(/^\//, "");
+      expect(fs.existsSync(path.join(process.cwd(), "app/(app)", dir, "page.tsx")), `${i.label} -> ${i.href}`).toBe(true);
+    }
   });
 
   it("gives suppliers their RFQ and profile pages but no internal procurement pages", () => {

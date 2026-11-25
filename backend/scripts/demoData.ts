@@ -108,3 +108,90 @@ export function openingStock(m: DemoMaterial, index: number): { warehouse: strin
   const qty = Math.max(1, Math.round(m.reorder * FACTORS[index % FACTORS.length]));
   return { warehouse: HOME[m.category], quantity: String(qty) };
 }
+
+/* ---------- Phase 4: planning demo data ---------- */
+export const LEAD_TIME_BY_CATEGORY: Record<string, number> = { BIL: 10, SCR: 7, FER: 21, REF: 28, CON: 12, SPR: 30, LUB: 7, PKG: 10, ELE: 35, MEC: 40 };
+/** Largest quantity the preferred supplier can deliver on one order, for the materials where it matters. */
+export const SUPPLIER_CAPACITY: Record<string, number> = { 'SCR-HMS': 1500, 'BIL-130': 800, 'FER-SIMN': 60 };
+
+export interface DemoProduct { code: string; name: string; unit: string; intermediate: boolean }
+export const DEMO_PRODUCTS: DemoProduct[] = [
+  { code: 'TMT-12', name: '[DEMO] TMT Bar 12mm', unit: 'MT', intermediate: false },
+  { code: 'TMT-16', name: '[DEMO] TMT Bar 16mm', unit: 'MT', intermediate: false },
+  { code: 'TMT-10I', name: '[DEMO] TMT Bar 10mm (integrated route)', unit: 'MT', intermediate: false },
+  { code: 'BIL-IH', name: '[DEMO] In-house Billet 130mm', unit: 'MT', intermediate: true },
+];
+
+export interface DemoBom {
+  product: string; version: number; effectiveFrom: string; status: 'active' | 'draft'; notes: string;
+  items: { sku?: string; product?: string; quantity: string; wastage: string }[];
+}
+// Quantities are per ONE MT of the product. Illustrative values, not real process data.
+export const DEMO_BOMS: DemoBom[] = [
+  { product: 'TMT-12', version: 1, effectiveFrom: '2026-01-01', status: 'active', notes: 'DEMO: original recipe', items: [
+    { sku: 'BIL-130', quantity: '1', wastage: '4' }, { sku: 'FER-SIMN', quantity: '0.013', wastage: '2' }, { sku: 'FER-FESI', quantity: '0.0035', wastage: '2' },
+    { sku: 'REF-LDL', quantity: '0.0006', wastage: '0' }, { sku: 'REF-TUN', quantity: '0.003', wastage: '0' }, { sku: 'PKG-WIRE', quantity: '0.003', wastage: '1' }, { sku: 'PKG-TAG', quantity: '4', wastage: '0' } ] },
+  { product: 'TMT-12', version: 2, effectiveFrom: '2026-09-01', status: 'active', notes: 'DEMO: lower billet wastage after mill tuning (applies to plans starting on or after 1 Sep 2026)', items: [
+    { sku: 'BIL-130', quantity: '1', wastage: '3' }, { sku: 'FER-SIMN', quantity: '0.013', wastage: '2' }, { sku: 'FER-FESI', quantity: '0.0035', wastage: '2' },
+    { sku: 'REF-LDL', quantity: '0.0006', wastage: '0' }, { sku: 'REF-TUN', quantity: '0.003', wastage: '0' }, { sku: 'PKG-WIRE', quantity: '0.003', wastage: '1' }, { sku: 'PKG-TAG', quantity: '4', wastage: '0' } ] },
+  { product: 'TMT-16', version: 1, effectiveFrom: '2026-01-01', status: 'active', notes: 'DEMO', items: [
+    { sku: 'BIL-150', quantity: '1', wastage: '3.5' }, { sku: 'FER-SIMN', quantity: '0.012', wastage: '2' }, { sku: 'LUB-HYD', quantity: '0.8', wastage: '0' },
+    { sku: 'PKG-WIRE', quantity: '0.003', wastage: '1' }, { sku: 'PKG-TAG', quantity: '4', wastage: '0' } ] },
+  { product: 'TMT-10I', version: 1, effectiveFrom: '2026-01-01', status: 'active', notes: 'DEMO: multi-level, uses in-house billet', items: [
+    { product: 'BIL-IH', quantity: '1', wastage: '4' }, { sku: 'PKG-WIRE', quantity: '0.003', wastage: '1' }, { sku: 'PKG-TAG', quantity: '5', wastage: '0' } ] },
+  { product: 'BIL-IH', version: 1, effectiveFrom: '2026-01-01', status: 'active', notes: 'DEMO: melt shop recipe from scrap', items: [
+    { sku: 'SCR-HMS', quantity: '1.08', wastage: '0' }, { sku: 'SCR-SHR', quantity: '0.12', wastage: '0' }, { sku: 'FER-SIMN', quantity: '0.011', wastage: '2' }, { sku: 'FER-FESI', quantity: '0.003', wastage: '2' },
+    { sku: 'CON-ELE', quantity: '0.0006', wastage: '0' }, { sku: 'CON-LIME', quantity: '0.04', wastage: '0' }, { sku: 'CON-DOL', quantity: '0.02', wastage: '0' },
+    { sku: 'CON-COKE', quantity: '0.008', wastage: '0' }, { sku: 'CON-OXY', quantity: '0.05', wastage: '0' }, { sku: 'REF-MGC', quantity: '0.0007', wastage: '0' }, { sku: 'REF-GUN', quantity: '0.002', wastage: '0' } ] },
+];
+
+export interface DemoPlan { ref: string; product: string; quantity: string; startInDays: number; durationDays: number; status: 'planned' | 'confirmed'; notes: string }
+export const DEMO_PLANS: DemoPlan[] = [
+  { ref: 'DEMO-PLAN-1', product: 'TMT-12', quantity: '600', startInDays: 12, durationDays: 8, status: 'confirmed', notes: 'DEMO: standard 12mm campaign' },
+  { ref: 'DEMO-PLAN-2', product: 'TMT-16', quantity: '400', startInDays: 25, durationDays: 8, status: 'planned', notes: 'DEMO' },
+  { ref: 'DEMO-PLAN-3', product: 'TMT-10I', quantity: '300', startInDays: 5, durationDays: 7, status: 'confirmed', notes: 'DEMO: short notice, exercises lead-time constraints and the multi-level BOM' },
+  { ref: 'DEMO-PLAN-4', product: 'TMT-12', quantity: '800', startInDays: 70, durationDays: 10, status: 'planned', notes: 'DEMO: beyond the default 30-day horizon' },
+];
+
+export interface DemoReservation { ref: string; sku: string; quantity: string; reason: string; plan?: string }
+export const DEMO_RESERVATIONS: DemoReservation[] = [
+  { ref: 'DEMO-RES-1', sku: 'BIL-130', quantity: '100', reason: 'DEMO: held for an export order, not available to production' },
+  { ref: 'DEMO-RES-2', sku: 'FER-SIMN', quantity: '5', reason: 'DEMO: set aside for plan 1', plan: 'DEMO-PLAN-1' },
+];
+
+const WEEKLY = [0.9, 1.1, 1, 0.8, 1.2, 1, 0.95, 1.05, 1.1, 0.9, 1, 1.15, 0.85];
+export const HISTORY_WEEKS = 52;
+/** One material gets a deliberately large final week so the abnormal-consumption detector has real data to find. */
+export const CONSUMPTION_SPIKE_SKU = 'SCR-SHR';
+/**
+ * 52 weekly issues to production over the last year: a base level sized from the reorder point, a gentle yearly cycle and a
+ * repeating week-to-week pattern. Each issue falls mid-week (daysAgo = 7 x week - 3), so every 7-day bucket ending today holds
+ * exactly one issue. Deterministic.
+ */
+export function consumptionHistory(m: DemoMaterial): { daysAgo: number; quantity: number }[] {
+  const weekly = Math.max(1, m.reorder * 0.06);
+  return Array.from({ length: HISTORY_WEEKS }, (_, i) => {
+    const season = 1 + 0.15 * Math.sin((2 * Math.PI * i) / 52);
+    const spike = m.sku === CONSUMPTION_SPIKE_SKU && i === 0 ? 4 : 1; // i = 0 is the most recent week
+    return { daysAgo: 7 * (i + 1) - 3, quantity: Math.max(1, Math.round(weekly * WEEKLY[i % WEEKLY.length] * season * spike)) };
+  });
+}
+
+/* ---------- Phase 5: price history ---------- */
+export const PRICE_OBSERVATIONS = 14;
+const PRICE_NOISE = [0, 0.01, -0.01, 0.015, -0.015, 0.005, -0.005];
+/** Daily drift as a fraction of the average price, for materials that should show a rising trend. */
+export const PRICE_TREND_PER_DAY: Record<string, number> = { 'BIL-130': 0.0004, 'SCR-HMS': 0.0003 };
+/** Multiplier on the most recent price, so the price-increase detector has something to find. */
+export const PRICE_JUMP: Record<string, number> = { 'FER-SIMN': 1.28 };
+/** 14 observations 26 days apart ending 26 days ago, oldest first. Deterministic. */
+export function priceHistory(m: DemoMaterial): { daysAgo: number; price: string }[] {
+  const base = Number(m.avgPrice);
+  const drift = PRICE_TREND_PER_DAY[m.sku] ?? 0;
+  return Array.from({ length: PRICE_OBSERVATIONS }, (_, i) => {
+    const daysAgo = 26 * (PRICE_OBSERVATIONS - i);
+    const last = i === PRICE_OBSERVATIONS - 1;
+    const level = base * (1 + drift * (364 - daysAgo - 182)) * (1 + PRICE_NOISE[i % PRICE_NOISE.length]) * (last ? PRICE_JUMP[m.sku] ?? 1 : 1);
+    return { daysAgo, price: level.toFixed(2) };
+  });
+}

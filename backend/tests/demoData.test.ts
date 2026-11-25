@@ -80,3 +80,101 @@ describe('demo warehouses and opening stock', () => {
     expect([...seen].sort()).toEqual(['critical', 'low', 'ok', 'reorder']);
   });
 });
+
+import { CONSUMPTION_SPIKE_SKU, PRICE_JUMP, PRICE_OBSERVATIONS, consumptionHistory, priceHistory, DEMO_BOMS, DEMO_PLANS, DEMO_PRODUCTS, DEMO_RESERVATIONS, LEAD_TIME_BY_CATEGORY, SUPPLIER_CAPACITY } from '../scripts/demoData';
+import { explodeBom, type Bom } from '../src/domain/bom';
+
+describe('Phase 4 demo data', () => {
+  const skus = new Set(DEMO_MATERIALS.map((m) => m.sku));
+  const prodCodes = new Set(DEMO_PRODUCTS.map((p) => p.code));
+  it('every BOM component exists and every BOM belongs to a known product', () => {
+    for (const b of DEMO_BOMS) {
+      expect(prodCodes.has(b.product)).toBe(true);
+      for (const i of b.items) {
+        expect(Boolean(i.sku) !== Boolean(i.product)).toBe(true);
+        if (i.sku) expect(skus.has(i.sku)).toBe(true);
+        if (i.product) expect(prodCodes.has(i.product)).toBe(true);
+        expect(i.quantity).toMatch(/^\d+(\.\d{1,6})?$/);
+        expect(Number(i.wastage)).toBeGreaterThanOrEqual(0);
+        expect(Number(i.wastage)).toBeLessThanOrEqual(100);
+      }
+    }
+  });
+  it('has unique product/version pairs and a multi-level example', () => {
+    const keys = DEMO_BOMS.map((b) => `${b.product}:${b.version}`);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(DEMO_BOMS.some((b) => b.items.some((i) => i.product))).toBe(true);
+    expect(DEMO_PRODUCTS.some((p) => p.intermediate)).toBe(true);
+  });
+  it('demonstrates BOM versioning: plans before and after the v2 date use different wastage', () => {
+    const idOf = (code: string) => `P:${code}`;
+    const boms: Bom[] = DEMO_BOMS.map((b) => ({ id: `${b.product}${b.version}`, number: `BOM-${b.product}-${b.version}`, product: idOf(b.product), version: b.version, status: b.status, effectiveFrom: new Date(b.effectiveFrom),
+      items: b.items.map((i) => ({ material: i.sku ?? null, subProduct: i.product ? idOf(i.product) : null, quantity: i.quantity, wastagePercent: i.wastage })) }));
+    const before = explodeBom(idOf('TMT-12'), 100, new Date('2026-06-01'), boms).requirements.find((r) => r.material === 'BIL-130')!;
+    const after = explodeBom(idOf('TMT-12'), 100, new Date('2026-11-01'), boms).requirements.find((r) => r.material === 'BIL-130')!;
+    expect(before.adjusted.toFixed()).toBe('104');
+    expect(after.adjusted.toFixed()).toBe('103');
+  });
+  it('the multi-level product explodes to raw materials with no issues', () => {
+    const idOf = (code: string) => `P:${code}`;
+    const boms: Bom[] = DEMO_BOMS.map((b) => ({ id: `${b.product}${b.version}`, number: `B-${b.product}-${b.version}`, product: idOf(b.product), version: b.version, status: b.status, effectiveFrom: new Date(b.effectiveFrom),
+      items: b.items.map((i) => ({ material: i.sku ?? null, subProduct: i.product ? idOf(i.product) : null, quantity: i.quantity, wastagePercent: i.wastage })) }));
+    const r = explodeBom(idOf('TMT-10I'), 300, new Date('2026-12-01'), boms);
+    expect(r.issues).toEqual([]);
+    expect(r.requirements.find((x) => x.material === 'SCR-HMS')!.gross.toFixed()).toBe('336.96'); // 300 x 1.04 billet x 1.08 scrap
+    expect(r.requirements.every((x) => skus.has(x.material))).toBe(true);
+  });
+  it('plans point at real products and include one outside the default horizon', () => {
+    for (const p of DEMO_PLANS) { expect(prodCodes.has(p.product)).toBe(true); expect(Number(p.quantity)).toBeGreaterThan(0); expect(p.durationDays).toBeGreaterThanOrEqual(0); }
+    expect(new Set(DEMO_PLANS.map((p) => p.ref)).size).toBe(DEMO_PLANS.length);
+    expect(DEMO_PLANS.some((p) => p.startInDays > 30)).toBe(true);
+    expect(DEMO_PLANS.some((p) => p.startInDays < 10)).toBe(true);
+  });
+  it('reservations reference real materials and plans', () => {
+    const refs = new Set(DEMO_PLANS.map((p) => p.ref));
+    for (const r of DEMO_RESERVATIONS) { expect(skus.has(r.sku)).toBe(true); if (r.plan) expect(refs.has(r.plan)).toBe(true); }
+  });
+  it('lead times cover every category and capacities reference real materials', () => {
+    for (const c of DEMO_CATEGORIES) expect(LEAD_TIME_BY_CATEGORY[c.code]).toBeGreaterThan(0);
+    for (const sku of Object.keys(SUPPLIER_CAPACITY)) expect(skus.has(sku)).toBe(true);
+  });
+  it('consumption history is positive, spans a year and keeps the opening-stock ledger non-negative', () => {
+    DEMO_MATERIALS.forEach((m, i) => {
+      const h = consumptionHistory(m);
+      expect(h).toHaveLength(52);
+      expect(h[h.length - 1].daysAgo).toBe(361);
+      expect(h[0].daysAgo).toBe(4);
+      expect(new Set(h.map((x) => Math.floor(x.daysAgo / 7))).size).toBe(52); // exactly one issue in every 7-day bucket ending today
+      const total = h.reduce((a, x) => a + x.quantity, 0);
+      const open = Number(openingStock(m, i).quantity);
+      let bal = open + total; // the seed writes an earlier opening balance of (opening + total consumption)
+      for (const x of [...h].sort((a, b) => b.daysAgo - a.daysAgo)) { bal -= x.quantity; expect(bal).toBeGreaterThanOrEqual(open); }
+      expect(bal).toBe(open);
+    });
+  });
+});
+
+describe('Phase 5 demo data', () => {
+  it('price history has enough observations for a trend, ordered oldest first, all positive', () => {
+    for (const m of DEMO_MATERIALS) {
+      const h = priceHistory(m);
+      expect(h).toHaveLength(PRICE_OBSERVATIONS);
+      expect(h.every((x, i) => i === 0 || x.daysAgo < h[i - 1].daysAgo)).toBe(true);
+      expect(h[0].daysAgo - h[h.length - 1].daysAgo).toBeGreaterThanOrEqual(60);
+      for (const x of h) { expect(Number(x.price)).toBeGreaterThan(0); expect(x.price).toMatch(/^\d+\.\d{2}$/); }
+    }
+  });
+  it('the planted price jump and consumption spike are found by the detectors, and ordinary materials are not flagged', () => {
+    const { detectPriceIncrease, detectAbnormalConsumption } = require('../src/domain/risk');
+    const asObs = (m: any) => priceHistory(m).map((p) => ({ date: new Date(Date.now() - p.daysAgo * 864e5), price: Number(p.price) }));
+    const jumped = DEMO_MATERIALS.filter((m) => detectPriceIncrease({ material: { id: m.sku, name: m.name }, observations: asObs(m) }));
+    expect(jumped.map((m) => m.sku)).toEqual(Object.keys(PRICE_JUMP));
+    const weeksOf = (m: any) => consumptionHistory(m).sort((a, b) => b.daysAgo - a.daysAgo).map((x) => x.quantity);
+    const spiked = DEMO_MATERIALS.filter((m) => detectAbnormalConsumption({ material: { id: m.sku, name: m.name }, weeks: weeksOf(m), lastWeekStart: 'x' }));
+    expect(spiked.map((m) => m.sku)).toEqual([CONSUMPTION_SPIKE_SKU]);
+  });
+  it('the demo history is enough for the ML service to evaluate every model (needs 30+ weeks)', () => {
+    expect(consumptionHistory(DEMO_MATERIALS[0]).length).toBeGreaterThanOrEqual(30);
+  });
+});
+

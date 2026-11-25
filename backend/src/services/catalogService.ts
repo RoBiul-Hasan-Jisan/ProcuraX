@@ -14,6 +14,7 @@ export function presentMaterial(m: any) {
     preferredSuppliers: (m.preferredSuppliers ?? []).map((s: any) => (s?._id ? { id: String(s._id), name: s.companyName } : { id: String(s) })),
     minimumStock: m.minimumStock, safetyStock: m.safetyStock, reorderPoint: m.reorderPoint,
     averagePurchasePrice: m.averagePurchasePrice ? str(m.averagePurchasePrice) : null,
+    leadTimeDays: m.leadTimeDays ?? 0, supplierCapacity: m.supplierCapacity ? str(m.supplierCapacity, 3) : null,
     currency: m.currency, active: m.active,
   };
 }
@@ -43,6 +44,7 @@ export async function getMaterial(id: string) {
 function toDoc(input: any) {
   const doc: Record<string, unknown> = { ...input };
   if ('averagePurchasePrice' in input) doc.averagePurchasePrice = input.averagePurchasePrice == null ? null : toD128(input.averagePurchasePrice);
+  if ('supplierCapacity' in input) doc.supplierCapacity = input.supplierCapacity == null ? null : toD128(input.supplierCapacity);
   return doc;
 }
 

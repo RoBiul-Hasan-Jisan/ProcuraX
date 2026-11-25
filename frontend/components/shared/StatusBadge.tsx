@@ -10,6 +10,8 @@ const TONES: Record<string, string> = {
   pending: "bg-amber-50 text-warn", rejected: "bg-red-50 text-danger",
   draft: "bg-slate-100 text-slate-700", issued: "bg-blue-50 text-blue-700", partially_received: "bg-amber-50 text-warn", received: "bg-green-50 text-ok",
   pending_verification: "bg-amber-50 text-warn", disputed: "bg-red-50 text-danger",
+  confirmed: "bg-blue-50 text-blue-700", planned: "bg-slate-100 text-slate-700", in_progress: "bg-amber-50 text-warn", completed: "bg-green-50 text-ok", completed_with_issues: "bg-amber-50 text-warn", obsolete: "bg-slate-100 text-slate-500",
+  high: "bg-orange-50 text-orange-700", medium: "bg-amber-50 text-warn",
   ok: "bg-green-50 text-ok", reorder: "bg-amber-50 text-warn", low: "bg-orange-50 text-orange-700", critical: "bg-red-50 text-danger",
   Low: "bg-slate-100 text-slate-600", Medium: "bg-blue-50 text-blue-700", High: "bg-orange-50 text-orange-700", Urgent: "bg-red-50 text-danger",
 };

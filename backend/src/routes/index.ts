@@ -19,6 +19,8 @@ import { linkUserToSupplier } from '../services/supplierService';
 import catalogRoutes from './catalog';
 import procurementRoutes from './procurement';
 import purchasingRoutes from './purchasing';
+import planningRoutes from './planning';
+import intelligenceRoutes from './intelligence';
 
 const router = Router();
 
@@ -127,5 +129,7 @@ router.post(
 router.use(catalogRoutes);
 router.use(procurementRoutes);
 router.use(purchasingRoutes);
+router.use(planningRoutes);
+router.use(intelligenceRoutes);
 
 export default router;

@@ -2,7 +2,7 @@ export interface Category { id: string; name: string; code: string }
 export interface Material {
   id: string; sku: string; name: string; category: { id: string; name: string | null }; description: string; unit: string;
   technicalSpecs: string; minimumStock: number; safetyStock: number; reorderPoint: number; averagePurchasePrice: string | null;
-  currency: string; active: boolean;
+  currency: string; active: boolean; leadTimeDays?: number; supplierCapacity?: string | null;
 }
 export interface Supplier {
   id: string; supplierCode: string; companyName: string; contactPerson: string; email: string; phone: string; address: string;

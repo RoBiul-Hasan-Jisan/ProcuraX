@@ -26,3 +26,9 @@ body {
 }
 
 * { scrollbar-width: thin; scrollbar-color: #b6c2d1 transparent; }
+
+@media print {
+  aside, header, .no-print { display: none !important; }
+  div, main { height: auto !important; overflow: visible !important; }
+  body { background: #fff; }
+}

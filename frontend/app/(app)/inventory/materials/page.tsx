@@ -26,6 +26,8 @@ const schema = z.object({
   unit: z.string().trim().min(1, "Unit is required"), description: z.string(), technicalSpecs: z.string(),
   minimumStock: num("Minimum stock"), safetyStock: num("Safety stock"), reorderPoint: num("Reorder point"),
   averagePurchasePrice: z.string().refine((v) => v === "" || /^\d+(\.\d{1,4})?$/.test(v), "Enter a valid price (max 4 decimals)"),
+  leadTimeDays: z.string().regex(/^\d+$/, "Whole days, 0 if unknown"),
+  supplierCapacity: z.string().refine((v) => v === "" || /^\d+(\.\d{1,4})?$/.test(v), "Enter a number (max 4 decimals) or leave empty"),
   active: z.boolean(),
 });
 type Values = z.infer<typeof schema>;
@@ -37,12 +39,12 @@ function MaterialForm({ material, categories, onDone }: { material: Material | n
     defaultValues: material
       ? { sku: material.sku, name: material.name, category: material.category.id, unit: material.unit, description: material.description, technicalSpecs: material.technicalSpecs,
           minimumStock: String(material.minimumStock), safetyStock: String(material.safetyStock), reorderPoint: String(material.reorderPoint),
-          averagePurchasePrice: material.averagePurchasePrice ?? "", active: material.active }
-      : { sku: "", name: "", category: "", unit: "MT", description: "", technicalSpecs: "", minimumStock: "0", safetyStock: "0", reorderPoint: "0", averagePurchasePrice: "", active: true },
+          averagePurchasePrice: material.averagePurchasePrice ?? "", leadTimeDays: String(material.leadTimeDays ?? 0), supplierCapacity: material.supplierCapacity ?? "", active: material.active }
+      : { sku: "", name: "", category: "", unit: "MT", description: "", technicalSpecs: "", minimumStock: "0", safetyStock: "0", reorderPoint: "0", averagePurchasePrice: "", leadTimeDays: "0", supplierCapacity: "", active: true },
   });
   const submit = (v: Values) =>
     run(async () => {
-      const body = { ...v, minimumStock: Number(v.minimumStock), safetyStock: Number(v.safetyStock), reorderPoint: Number(v.reorderPoint), averagePurchasePrice: v.averagePurchasePrice === "" ? null : v.averagePurchasePrice };
+      const body = { ...v, minimumStock: Number(v.minimumStock), safetyStock: Number(v.safetyStock), reorderPoint: Number(v.reorderPoint), averagePurchasePrice: v.averagePurchasePrice === "" ? null : v.averagePurchasePrice, leadTimeDays: Number(v.leadTimeDays), supplierCapacity: v.supplierCapacity === "" ? null : v.supplierCapacity };
       await apiFetch(material ? `/materials/${material.id}` : "/materials", { method: material ? "PATCH" : "POST", body: JSON.stringify(body) });
       onDone();
     });
@@ -58,6 +60,8 @@ function MaterialForm({ material, categories, onDone }: { material: Material | n
       <Field label="Safety stock" htmlFor="safetyStock" error={errors.safetyStock?.message}><Input id="safetyStock" {...register("safetyStock")} /></Field>
       <Field label="Reorder point" htmlFor="reorderPoint" error={errors.reorderPoint?.message}><Input id="reorderPoint" {...register("reorderPoint")} /></Field>
       <Field label="Average purchase price (BDT)" htmlFor="averagePurchasePrice" error={errors.averagePurchasePrice?.message} hint="Optional. Used to flag unusually high quotations."><Input id="averagePurchasePrice" {...register("averagePurchasePrice")} /></Field>
+      <Field label="Supplier lead time (days)" htmlFor="leadTimeDays" error={errors.leadTimeDays?.message} hint="Used by MRP to time orders. 0 = not set (a default is assumed and flagged)."><Input id="leadTimeDays" {...register("leadTimeDays")} /></Field>
+      <Field label="Supplier capacity per order" htmlFor="supplierCapacity" error={errors.supplierCapacity?.message} hint="Optional. MRP warns when a planned order is larger."><Input id="supplierCapacity" {...register("supplierCapacity")} /></Field>
       <div className="sm:col-span-2"><Field label="Technical specifications" htmlFor="technicalSpecs"><Textarea id="technicalSpecs" {...register("technicalSpecs")} /></Field></div>
       <div className="sm:col-span-2"><Field label="Description" htmlFor="description"><Textarea id="description" {...register("description")} /></Field></div>
       <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" {...register("active")} /> Active (available for requisitions)</label>

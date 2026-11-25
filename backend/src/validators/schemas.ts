@@ -43,6 +43,7 @@ export const materialBody = z.object({
   technicalSpecs: z.string().trim().max(1000).default(''), preferredSuppliers: z.array(objectId).max(20).default([]),
   minimumStock: z.number().min(0).default(0), safetyStock: z.number().min(0).default(0), reorderPoint: z.number().min(0).default(0),
   averagePurchasePrice: decimalString('Average price').nullable().optional(), active: z.boolean().default(true),
+  leadTimeDays: z.number().int().min(0).max(730).default(0), supplierCapacity: decimalString('Supplier capacity').nullable().optional(),
 });
 export const materialUpdateBody = materialBody.partial().refine((v) => Object.keys(v).length > 0, 'At least one field is required');
 
@@ -132,3 +133,59 @@ export const movementsQuery = z.object({ ...page, material: objectId.optional(),
 export const adjustmentBody = z.object({ materialId: objectId, warehouseId: objectId, direction: z.enum(['increase', 'decrease']), quantity: qty('Quantity'), reason: z.string().trim().min(5, 'A reason is required').max(300) });
 export const issueBody = z.object({ materialId: objectId, warehouseId: objectId, quantity: qty('Quantity'), reason: z.string().trim().min(3, 'A reason is required').max(300) });
 export const transferBody = z.object({ materialId: objectId, fromWarehouseId: objectId, toWarehouseId: objectId, quantity: qty('Quantity'), reason: z.string().trim().min(3).max(300) });
+
+/* ---------- Phase 4 ---------- */
+const decN = (label: string, places: number) =>
+  z.union([z.string(), z.number()]).transform((v) => String(v).trim())
+    .refine((v) => new RegExp(`^\\d+(\\.\\d{1,${places}})?$`).test(v), `${label} must be a non-negative number with at most ${places} decimals`);
+export const listProductsQuery = z.object({ search: z.string().trim().max(80).optional(), active: boolish.optional() });
+export const productBody = z.object({ code: z.string().trim().min(2).max(20), name: z.string().trim().min(2).max(120), unit: z.string().trim().min(1).max(10).default('MT'), description: z.string().trim().max(300).default(''), intermediate: z.boolean().default(false) });
+export const productUpdateBody = z.object({ name: z.string().trim().min(2).max(120), description: z.string().trim().max(300), intermediate: z.boolean(), active: z.boolean() }).partial().refine((v) => Object.keys(v).length > 0, 'At least one field is required');
+
+export const listBomsQuery = z.object({ product: objectId.optional(), status: z.enum(['draft', 'active', 'obsolete']).optional() });
+export const bomBody = z.object({
+  productId: objectId, effectiveFrom: z.coerce.date(), notes: z.string().trim().max(500).default(''),
+  items: z.array(z.object({
+    materialId: objectId.nullable().optional(), subProductId: objectId.nullable().optional(),
+    quantity: decN('Quantity', 6).refine((v) => Number(v) > 0, 'Quantity must be greater than zero'), wastagePercent: decN('Wastage', 2).default('0'),
+  })).min(1, 'Add at least one component').max(60),
+});
+
+export const listPlansQuery = z.object({ ...page, status: z.enum(['planned', 'confirmed', 'in_progress', 'completed', 'cancelled']).optional(), product: objectId.optional() });
+export const planBody = z.object({
+  productId: objectId, quantity: decN('Quantity', 3).refine((v) => Number(v) > 0, 'Quantity must be greater than zero'),
+  startDate: z.coerce.date(), endDate: z.coerce.date(), notes: z.string().trim().max(500).default(''),
+});
+export const planStatusBody = z.object({ status: z.enum(['planned', 'confirmed', 'in_progress', 'completed', 'cancelled']) });
+
+export const listReservationsQuery = z.object({ status: z.enum(['active', 'released']).optional(), material: objectId.optional() });
+export const reservationBody = z.object({ materialId: objectId, quantity: qty('Quantity'), reason: z.string().trim().min(3, 'A reason is required').max(300), productionPlanId: objectId.nullable().optional() });
+
+export const mrpRunBody = z.object({ planIds: z.array(objectId).min(1, 'Select at least one production plan').max(50), horizonDays: z.number().int().min(1).max(365) });
+export const listRunsQuery = z.object({ ...page });
+export const reorderQuery = z.object({ onlyNeeded: boolish.default(true) });
+export const mrpSettingsBody = z.object({
+  horizonDays: z.number().int().min(1).max(365), defaultLeadTimeDays: z.number().int().min(0).max(365),
+  urgency: z.object({ highDays: z.number().int().min(0).max(60), mediumDays: z.number().int().min(0).max(120) }).refine((u) => u.mediumDays >= u.highDays, 'Medium threshold must be at least the high threshold'),
+  reorder: z.object({ lookbackDays: z.number().int().min(7).max(730), coverageDays: z.number().int().min(0).max(365) }),
+});
+
+/* ---------- Phase 5: forecasting, risk, assistant ---------- */
+export const forecastRunBody = z.object({ materialId: objectId });
+export const forecastListQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20), kind: z.enum(['demand', 'price']).default('demand'),
+});
+export const materialIdParam = z.object({ materialId: objectId });
+export const riskListQuery = z.object({
+  page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20),
+  status: z.enum(['open', 'acknowledged', 'investigating', 'resolved', 'dismissed']).optional(),
+  severity: z.enum(['critical', 'high', 'medium', 'low']).optional(),
+  category: z.string().max(40).optional(),
+  assignedToMe: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+});
+export const riskReviewBody = z.object({
+  status: z.enum(['acknowledged', 'investigating', 'resolved', 'dismissed']).optional(),
+  assignedTo: objectId.nullable().optional(),
+  note: z.string().trim().max(2000).optional(),
+}).refine((v) => v.status !== undefined || v.assignedTo !== undefined || !!v.note, { message: 'Provide a status, an assignee or a note' });
+export const assistantBody = z.object({ question: z.string().trim().min(3, 'Ask a full question').max(500) });
