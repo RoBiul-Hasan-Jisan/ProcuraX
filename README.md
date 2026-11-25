@@ -4,7 +4,7 @@
 
 An AI-assisted e-procurement, inventory and MRP platform for steel manufacturing. This is an **independent demo prototype** built on synthetic data. It is not affiliated with any steel manufacturer and uses no confidential or proprietary data or branding.
 
-## Status: Phase 6 (Enterprise Features) complete
+## Status: Phase 7 (Deployment) complete
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -14,9 +14,20 @@ An AI-assisted e-procurement, inventory and MRP platform for steel manufacturing
 | 4 | Production plans, BOM, MRP engine, reorder recommendations | **Done** (not run on a live DB or in a browser) |
 | 5 | Demand and price forecasting (Python ML), risk detection, data-grounded assistant, supplier performance | **Done** (not run on a live DB or in a browser) |
 | 6 | Notifications, audit logs, 12 reports with CSV/Excel/PDF export, document uploads | **Done** (not run on a live DB or in a browser) |
-| 7 | Docker deployment, health checks, backup docs | Not started |
+| 7 | Docker deployment, health checks, backup docs | **Done** (images not built or run here; see below) |
 
 Navigation items for later phases are visible (per role) but disabled and tagged with their phase. The overview dashboard shows real database counts only; procurement KPIs are explicitly marked "not available yet" rather than showing placeholder numbers.
+
+### What Phase 7 includes
+
+- **Docker**: a Dockerfile for the backend, frontend and ML service (multi-stage, non-root users, health checks), and `docker-compose.prod.yml` for the full stack (MongoDB replica set, ML, API, web). `docker-compose.yml` is unchanged and still gives you MongoDB only for development. See [docs/deployment.md](docs/deployment.md).
+- **Safer startup**: in production the API refuses to start with a placeholder `ML_INTERNAL_KEY`, missing Firebase credentials or a non-https `FRONTEND_URL`; Compose refuses to start with required values missing. The API shuts down gracefully on SIGTERM.
+- **Backups**: `scripts/backup.sh` and `scripts/restore.sh` for MongoDB plus the uploaded documents; see [docs/backup-restore.md](docs/backup-restore.md). A no-Docker path (MongoDB Atlas) is documented too.
+- **Fixes found while preparing this**: `npm run build` used to emit `dist/src/server.js` while `npm start` ran `dist/server.js`, so a production start would have failed. A separate `tsconfig.build.json` now builds only `src` to `dist/`. The ML requirements are split into `requirements.txt` (runtime) and `requirements-dev.txt` (adds pytest and httpx). Stray `.whl` files from an earlier experiment were removed from `backend/`.
+
+**What was verified in this environment, and what was not**
+- Verified: `docker compose config` accepts both compose files, interpolates the Firebase key without mangling it, fails fast on a missing secret, and excludes the `seed` service unless `--profile tools` is given. The compiled backend starts with production dependencies only and reaches the database connection. The Next.js standalone build serves pages and static files. The ML service runs from a clean environment with only the runtime requirements (health, key check and a real forecast call). The shell scripts pass `bash -n`. 5 new tests cover the production-config guard.
+- **Not verified**: no Docker daemon was available, so **no image was built and no container was started**. The Dockerfiles, the Compose startup order, the MongoDB replica-set initialisation under Compose, the container health checks, graceful shutdown and the backup and restore scripts have not been run. Treat the first `docker compose up --build` as the real test. The ML image uses Python 3.12; the checks above ran on 3.13.
 
 ### What Phase 6 includes
 
@@ -160,32 +171,15 @@ Set `BOOTSTRAP_ADMIN_EMAIL` to your own email. The first time that **verified** 
 
 ```bash
 cd backend
-npm run seed
+DEMO_UID_SYSTEM_ADMIN=<firebase uid> DEMO_UID_PROCUREMENT_MANAGER=<uid> npm run seed
 ```
 
-The seed needs the Firebase Admin values in `backend/.env`. It creates (or finds) a Firebase user for every demo role, links each UID to its MongoDB profile, and fills in the role, department and supplier link. No UIDs need to be copied by hand.
+The seed is idempotent, marks every record `isDemoData`, and skips roles whose `DEMO_UID_<ROLE>` is not set. It also seeds the Phase 4 planning data described above and, for Phase 5, 52 weeks of consumption history written as ledger entries and 14 price observations per material (one material has a planted price jump and one a planted consumption spike so risk detection has something to find). It seeds 5 departments, 3 warehouses with opening stock (chosen so every alert level appears; written once, never doubled on re-run), 10 categories, 36 materials, 10 suppliers (7 proven, 1 unproven with 2 orders, 1 unverified, 1 blocked) and demo user profiles. Supplier-role logins link to supplier records via `DEMO_UID_SUPPLIER` (SUP-0001), `DEMO_UID_SUPPLIER_2` (SUP-0002) and `DEMO_UID_SUPPLIER_3` (SUP-0003). Demo data lives in `backend/scripts/demoData.ts` and is covered by tests.
 
-All demo accounts share one password, `demo@12345`. To change it, set `DEMO_PASSWORD` in `backend/.env` before running the seed. Existing demo users are reset to that password and marked verified. Use this for local development and demos only, and delete these users before any real deployment.
-
-| Role | Email |
-|---|---|
-| System Administrator | `admin@demo.steelprocure.example` |
-| Procurement Manager | `procurement@demo.steelprocure.example` |
-| Department Manager | `deptmanager@demo.steelprocure.example` |
-| Inventory Officer | `inventory@demo.steelprocure.example` |
-| Finance Officer | `finance@demo.steelprocure.example` |
-| Management | `executive@demo.steelprocure.example` |
-| Supplier (SUP-0001) | `supplier@demo.steelprocure.example` |
-| Supplier (SUP-0002) | `supplier2@demo.steelprocure.example` |
-| Supplier (SUP-0003) | `supplier3@demo.steelprocure.example` |
-
-To use an account you already created in Firebase, set `DEMO_UID_<ROLE>` (for example `DEMO_UID_SYSTEM_ADMIN`, `DEMO_UID_SUPPLIER_2`) and the seed uses that UID instead of creating a user.
-
-The seed is idempotent and marks every record `isDemoData`. It seeds 5 departments, 3 warehouses with opening stock (chosen so every alert level appears; written once, never doubled on re-run), 10 categories, 36 materials, and 10 suppliers (7 proven, 1 unproven with 2 orders, 1 unverified, 1 blocked). It also seeds the Phase 4 planning data described above and, for Phase 5, 52 weeks of consumption history written as ledger entries and 14 price observations per material (one material has a planted price jump and one a planted consumption spike so risk detection has something to find). Demo data lives in `backend/scripts/demoData.ts` and is covered by tests.
 ## Tests
 
 ```bash
-cd backend  && npm test && npm run typecheck
+cd backend  && npm test && npm run typecheck && npm run build
 cd frontend && npm test && npm run typecheck && npm run lint
 ```
 
@@ -196,7 +190,10 @@ cd frontend && npm test && npm run typecheck && npm run lint
 - `ml/` Python ML service (forecasting; no database access).
 - Roles: system_admin, procurement_manager, department_manager, inventory_officer, finance_officer, supplier, management.
 
-## Known limitations (through Phase 6)
+## Known limitations (through Phase 7)
+
+- Phase 7: MongoDB in the Compose stack has no authentication (private network only). Single host, no log shipping or alerting, only the local uploads driver. Details in [docs/deployment.md](docs/deployment.md).
+- Phase 7: a backup is only proven by a restore; practise it. Backups are consistent per collection, not a cross-collection snapshot.
 
 - Phase 6: nothing has run against a live MongoDB, a real Firebase project or in a browser. Uploads were tested with an in-memory/temp-dir adapter, never through a real browser file picker.
 - Phase 6 audit: an audit entry is written right after the business change, **not in the same transaction**. A crash between the two could lose an entry (failures are logged, never swallowed silently); conversely an entry is never written for a change that failed. The append-only guarantee is enforced in the application. **In production also restrict the database user so it can only insert and find on the `auditlogs` collection.**
@@ -217,7 +214,7 @@ cd frontend && npm test && npm run typecheck && npm run lint
 - Phase 5: forecasts use short, synthetic demo history; accuracy figures describe that data only. A forecast is a prediction and can be wrong.
 - Phase 4: the MRP service, seed and every Phase 3 transaction have not run against a live MongoDB. The UI has never been opened in a browser.
 - Phase 4: an in-progress plan counts at its full quantity (no credit for work already issued). Two simultaneous reservations can both pass the free-stock check. PDF export is browser print-to-PDF, not server-generated. Consumption history in the seed is about 90 days; a full year arrives with forecasting in Phase 5.
-- Backend: 564 tests (domain rules, route permissions/validation, mocked-model services, demo data). Atomic-gate ordering and unique indexes are untested against a real MongoDB; a failure between dependent writes could leave partial state.
+- Backend: 569 tests (domain rules, route permissions/validation, mocked-model services, demo data). Atomic-gate ordering and unique indexes are untested against a real MongoDB; a failure between dependent writes could leave partial state.
 - Frontend: 138 tests (13 files); ML: 18 pytest tests (navigation, guards, forms, decimal maths, comparison, approvals). Pages such as settings and overview have little direct coverage.
 - No end-to-end test of supplier isolation against a running server.
 - The Next.js build was verified; the app itself was not exercised in a browser.
