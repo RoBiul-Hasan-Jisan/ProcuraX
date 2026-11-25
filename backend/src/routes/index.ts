@@ -21,6 +21,11 @@ import procurementRoutes from './procurement';
 import purchasingRoutes from './purchasing';
 import planningRoutes from './planning';
 import intelligenceRoutes from './intelligence';
+import operationsRoutes from './operations';
+import documentRoutes from './documents';
+import reportRoutes from './reports';
+import { audit } from '../services/auditService';
+import { diffFields } from '../domain/audit';
 
 const router = Router();
 
@@ -87,6 +92,7 @@ router.patch(
     if (patch.status === 'active' && patch.role === null) {
       throw badRequest('An active account requires a role');
     }
+    const before = await userRepository.findById(id);
     const { supplierId, ...userPatch } = patch as typeof patch & { supplierId?: string | null };
     const updated = Object.keys(userPatch).length ? await userRepository.update(id, userPatch) : await userRepository.findById(id);
     if (!updated) throw notFound('User not found');
@@ -96,6 +102,7 @@ router.patch(
       await userRepository.update(id, { status: 'pending' });
       throw badRequest('Assign a role before activating the account');
     }
+    await audit(req.user!, { action: 'user.updated', entityType: 'User', entityId: id, entityNumber: updated.email, summary: `Changed ${Object.keys(patch).join(', ')}`, ...(diffFields(before as any, { ...updated, supplierId: supplierId !== undefined ? supplierId : (before as any)?.supplierId } as any, ['role', 'status', 'departmentId', 'supplierId', 'displayName']) ?? {}) });
     sendSuccess(res, updated, 'User updated');
   },
 );
@@ -131,5 +138,8 @@ router.use(procurementRoutes);
 router.use(purchasingRoutes);
 router.use(planningRoutes);
 router.use(intelligenceRoutes);
+router.use(operationsRoutes);
+router.use(documentRoutes);
+router.use(reportRoutes);
 
 export default router;

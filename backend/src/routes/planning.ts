@@ -7,6 +7,7 @@ import {
   planBody, planStatusBody, productBody, productUpdateBody, reorderQuery, reservationBody,
 } from '../validators/schemas';
 import * as planning from '../services/planningService';
+import { audit } from '../services/auditService';
 import * as mrp from '../services/mrpService';
 import { paginate, protectedChain, validated } from './common';
 
@@ -46,7 +47,12 @@ r.post('/reservations', requirePermission('inventory:manage'), validate(reservat
 r.post('/reservations/:id/release', requirePermission('inventory:manage'), validate(idParam, 'params'), async (_req, res) => sendSuccess(res, await planning.releaseReservation(id(res)), 'Reservation released'));
 
 /* MRP */
-r.post('/mrp/run', requirePermission('mrp:run'), validate(mrpRunBody), async (req, res) => sendSuccess(res, await mrp.runMrp(req.user!, validated(res, 'body')), 'MRP run completed', 201));
+r.post('/mrp/run', requirePermission('mrp:run'), validate(mrpRunBody), async (req, res) => {
+  const body = validated<any>(res, 'body');
+  const run: any = await mrp.runMrp(req.user!, body);
+  await audit(req.user!, { action: 'mrp.run', entityType: 'MRPRun', entityId: String(run.id), entityNumber: run.number, summary: `Ran MRP for ${body.planIds.length} plan(s) over ${body.horizonDays} days`, after: { planIds: body.planIds, horizonDays: body.horizonDays, summary: run.summary } });
+  sendSuccess(res, run, 'MRP run completed', 201);
+});
 r.get('/mrp/runs', requirePermission('mrp:view'), validate(listRunsQuery, 'query'), async (_req, res) => {
   const q = validated<any>(res, 'query');
   const { items, total } = await mrp.listRuns(q);

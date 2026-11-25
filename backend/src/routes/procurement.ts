@@ -10,6 +10,7 @@ import * as requisitions from '../services/requisitionService';
 import * as approvals from '../services/approvalService';
 import * as rfqs from '../services/rfqService';
 import * as quotations from '../services/quotationService';
+import { audit } from '../services/auditService';
 import * as comparison from '../services/comparisonService';
 import { getSetting, putSetting } from '../models/Setting';
 import { DEFAULT_APPROVAL_CONFIG } from '../domain/approval';
@@ -97,8 +98,11 @@ r.post('/quotation-comparisons/:id/award', requirePermission('rfq:manage'), vali
 r.get('/settings/scoring', requirePermission('quotations:compare', 'rfq:manage'), async (_req, res) => {
   sendSuccess(res, await comparison.getScoringWeights());
 });
-r.put('/settings/scoring', requirePermission('suppliers:evaluate'), validate(weightsBody), async (_req, res) => {
-  sendSuccess(res, await comparison.setScoringWeights(validated(res, 'body')), 'Scoring weights updated');
+r.put('/settings/scoring', requirePermission('suppliers:evaluate'), validate(weightsBody), async (req, res) => {
+  const before = await comparison.getScoringWeights();
+  const after = await comparison.setScoringWeights(validated(res, 'body'));
+  await audit(req.user!, { action: 'scoring_weights.updated', entityType: 'Setting', entityId: 'scoring', summary: 'Changed supplier scoring weights', before, after });
+  sendSuccess(res, after, 'Scoring weights updated');
 });
 r.get('/settings/approval', requirePermission('settings:manage', 'rfq:manage'), async (_req, res) => {
   sendSuccess(res, await getSetting('approval', DEFAULT_APPROVAL_CONFIG));
