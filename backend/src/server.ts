@@ -12,7 +12,7 @@ async function main() {
   const app = createApp();
   const server: Server = app.listen(env.PORT, () => {
     // eslint-disable-next-line no-console
-    console.log(`SteelProcure API listening on :${env.PORT} (${env.NODE_ENV})`);
+    console.log(`ProcuraX API listening on :${env.PORT} (${env.NODE_ENV})`);
   });
 
   /** Docker sends SIGTERM on stop: finish in-flight requests, close the database, then exit. A timer forces exit if something hangs. */

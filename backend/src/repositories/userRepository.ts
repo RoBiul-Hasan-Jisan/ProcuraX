@@ -84,7 +84,7 @@ export const userRepository = {
     if (patch.role !== undefined) set.role = patch.role;
     if (patch.status !== undefined) set.status = patch.status;
     if (patch.departmentId !== undefined) set.department = patch.departmentId;
-    const doc = await User.findByIdAndUpdate(id, { $set: set }, { new: true }).lean();
+    const doc = await User.findByIdAndUpdate(id, { $set: set }, { returnDocument: 'after' }).lean();
     return doc ? toRecord(doc) : null;
   },
 };

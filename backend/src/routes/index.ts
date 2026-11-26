@@ -13,7 +13,7 @@ import {
 import { validate } from '../middlewares/validation';
 import { authLimiter } from '../middlewares/rateLimiter';
 import { sendSuccess, badRequest, conflict, notFound, forbidden, unauthorized } from '../utils/apiResponse';
-import { createDepartmentBody, idParam, listUsersQuery, updateUserBody } from '../validators/schemas';
+import { createDepartmentBody, updateDepartmentBody, idParam, listUsersQuery, updateUserBody } from '../validators/schemas';
 import { ROLE_LABELS } from '../utils/permissions';
 import { linkUserToSupplier } from '../services/supplierService';
 import catalogRoutes from './catalog';
@@ -112,9 +112,29 @@ router.get('/roles', ...protectedChain, requirePermission('users:manage'), async
   sendSuccess(res, await Role.find().sort({ name: 1 }).lean());
 });
 
-router.get('/departments', ...protectedChain, async (_req, res) => {
-  sendSuccess(res, await Department.find({ active: true }).sort({ name: 1 }).lean());
+router.get('/departments', ...protectedChain, async (req, res) => {
+  // Administrators who manage departments can also list the inactive ones.
+  const all = req.query.all === '1' && req.user!.permissions.includes('departments:manage');
+  sendSuccess(res, await Department.find(all ? {} : { active: true }).sort({ name: 1 }).lean());
 });
+
+/** Departments are never hard-deleted (requisitions and users refer to them); deactivate instead. */
+router.patch(
+  '/departments/:id',
+  ...protectedChain,
+  requirePermission('departments:manage'),
+  validate(idParam, 'params'),
+  validate(updateDepartmentBody),
+  async (req, res) => {
+    const { id } = res.locals.validated.params as { id: string };
+    const patch = res.locals.validated.body as { name?: string; description?: string; active?: boolean };
+    const before = await Department.findById(id).lean();
+    if (!before) throw notFound('Department not found');
+    const updated = await Department.findByIdAndUpdate(id, { $set: patch }, { returnDocument: 'after' }).lean();
+    await audit(req.user!, { action: 'department.updated', entityType: 'Department', entityId: id, entityNumber: before.code, summary: `Changed ${Object.keys(patch).join(', ')}`, before: { name: before.name, active: before.active }, after: { name: updated?.name, active: updated?.active } });
+    sendSuccess(res, updated, 'Department updated');
+  },
+);
 
 router.post(
   '/departments',
@@ -125,6 +145,7 @@ router.post(
     const body = res.locals.validated.body as { code: string; name: string; description?: string };
     try {
       const dept = await Department.create(body);
+      await audit(_req.user!, { action: 'department.created', entityType: 'Department', entityId: String(dept._id), entityNumber: dept.code, summary: `Created department ${dept.name}` });
       sendSuccess(res, dept, 'Department created', 201);
     } catch (err: any) {
       if (err?.code === 11000) throw conflict('A department with this code already exists');
