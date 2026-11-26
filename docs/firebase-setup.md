@@ -1,6 +1,6 @@
 # Firebase setup
 
-SteelProcure uses Firebase Authentication for identity only. Roles, status and permissions live in MongoDB.
+ProcuraX uses Firebase Authentication for identity only. Roles, status and permissions live in MongoDB.
 
 ## 1. Create the project
 

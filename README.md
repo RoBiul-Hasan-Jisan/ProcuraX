@@ -1,10 +1,10 @@
-# SteelProcure AI
+# ProcuraX
 
 *Intelligent Procurement. Smarter Inventory. Better Decisions.*
 
 An AI-assisted e-procurement, inventory and MRP platform for steel manufacturing. This is an **independent demo prototype** built on synthetic data. It is not affiliated with any steel manufacturer and uses no confidential or proprietary data or branding.
 
-## Status: Phase 7 (Deployment) complete
+## Status: Phase 8 (demo data, built-in ML, rename) on top of Phase 7
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -17,6 +17,15 @@ An AI-assisted e-procurement, inventory and MRP platform for steel manufacturing
 | 7 | Docker deployment, health checks, backup docs | **Done** (images not built or run here; see below) |
 
 Navigation items for later phases are visible (per role) but disabled and tagged with their phase. The overview dashboard shows real database counts only; procurement KPIs are explicitly marked "not available yet" rather than showing placeholder numbers.
+
+### What Phase 8 changes
+
+- **Renamed to ProcuraX** in the UI, page titles, API messages, exports, docs and package names. Deliberately *not* renamed: the MongoDB database name `steelprocure` and the demo e-mail domain `@demo.steelprocure.example`, so existing databases, backups and your Firebase demo accounts keep working.
+- **Demo data for every screen.** `npm run seed` (idempotent, run it again safely) now also creates 19 DEMO-R01..R19 requisitions covering each workflow stage: draft, waiting for department / procurement / finance approval, modification requested, rejected, **two approved requisitions with no RFQ** (fills "Create RFQ"), two open RFQs the supplier logins can quote on, a closed RFQ with 3 sealed quotes, an awarded RFQ without a PO, a draft PO, issued POs (one overdue), a **partially received PO with a rejection**, and fully received POs with a pending, a verified and a disputed invoice. It also adds stock receipts to the ledger, about 20 notifications, an MRP run, risk scan and forecasts. Awards are recorded as a person's decision, never automatic. The seed skips the workflow part with a message if the demo users do not exist yet.
+- **ML without any API or cost.** A built-in forecaster (moving average, exponential smoothing with rolling backtest, linear price trend) runs inside the backend. `ML_MODE=auto` (default) uses it when `ML_INTERNAL_KEY` is empty and falls back to it if the Python service is down; `builtin` never calls the service; `service` requires it. Random forest and XGBoost exist only in the Python service and show as "skipped" in builtin mode. On one test series the built-in numbers matched the Python service's to rounding.
+- **Next.js "instant navigation" errors fixed** by turning Cache Components off in `next.config.ts` (the app is client-rendered behind Firebase login, so it gains nothing from it). Remove the `export const instant` line if you still have it in `app/page.tsx`.
+
+**Not verified in this environment:** the seed was tested against an in-memory fake of the models, **not a real MongoDB or Firebase**; the UI was not opened in a browser; Docker images were not built. Run `npm run seed` once and check the screens.
 
 ### What Phase 7 includes
 
@@ -32,7 +41,7 @@ Navigation items for later phases are visible (per role) but disabled and tagged
 ### What Phase 6 includes
 
 - **Notifications**: persisted per recipient, created by backend events (requisition submitted/decided, approval needed, RFQ published, quotation received, supplier awarded, PO issued, goods received, invoice verified/disputed, low and critical stock, risk alerts). Recipients are resolved on the server by role, department, permission or linked supplier; the person who caused the event is not notified. A condition that persists (low stock, a risk alert) uses a `dedupeKey`, so it raises one notice, not one per scan; low-stock notices fire only when the level gets worse. Quotation notices never name the supplier or price (sealed bids). A person can only list or mark their own. The header bell polls every 60 s and on window focus; a `/notifications` page lists everything. Links are followed only if they are in-app paths.
-- **Audit log**: append-only record of 29 actions (requisition, approval, RFQ, quotation, award, PO, receipt, invoice, inventory, user changes, MRP runs, risk reviews, forecasts, documents, scoring weights, report exports). Each entry has user, role, action, record, before/after, time, request id and IP. Secrets, tokens and anything that looks like a bank/account field are redacted. Quotation prices are not written to the log. Only `audit:view` (System Administrator by default) can read it, through read-only endpoints; there is no write, edit or delete route and the model refuses updates and deletes.
+- **Audit log**: append-only record of 31 actions (requisition, approval, RFQ, quotation, award, PO, receipt, invoice, inventory, user changes, MRP runs, risk reviews, forecasts, documents, scoring weights, report exports). Each entry has user, role, action, record, before/after, time, request id and IP. Secrets, tokens and anything that looks like a bank/account field are redacted. Quotation prices are not written to the log. Only `audit:view` (System Administrator by default) can read it, through read-only endpoints; there is no write, edit or delete route and the model refuses updates and deletes.
 - **Reports** (`/reports`): 12 reports, each with its own filter set (date range, department, supplier, material, category, warehouse, PO status) and on-screen table, totals and notes. Exports (CSV, Excel, PDF) are generated on the server by re-running the report with the same filters and permission checks, are never stored, and each export is written to the audit log.
 
   | Report | Needs `reports:financial` |

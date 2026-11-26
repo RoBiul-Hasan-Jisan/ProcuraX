@@ -1,6 +1,6 @@
 # Deployment
 
-SteelProcure AI is a demo prototype with synthetic data. These notes get it running somewhere other than your laptop; they are not a security review. Read "What is not covered" before putting real business data in it.
+ProcuraX is a demo prototype with synthetic data. These notes get it running somewhere other than your laptop; they are not a security review. Read "What is not covered" before putting real business data in it.
 
 ## Option A: Docker Compose (recommended)
 

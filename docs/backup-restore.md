@@ -12,7 +12,7 @@ KEEP=30 scripts/backup.sh /srv/backups   # custom folder and retention (default 
 The script refuses to keep an empty file, writes under `umask 077`, and prunes old sets. Schedule it (for example a nightly cron entry) and **copy the files off the machine**, encrypted: they contain confidential business data. `backups/` is git-ignored.
 
 ```cron
-15 2 * * *  cd /opt/steelprocure && scripts/backup.sh >> /var/log/steelprocure-backup.log 2>&1
+15 2 * * *  cd /opt/procurax && scripts/backup.sh >> /var/log/procurax-backup.log 2>&1
 ```
 
 ## Restore
