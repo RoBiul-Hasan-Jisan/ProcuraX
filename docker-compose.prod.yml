@@ -2,7 +2,7 @@
 #   cp .env.production.example .env   # fill it in
 #   docker compose -f docker-compose.prod.yml --env-file .env up -d --build
 # Development keeps using docker-compose.yml (MongoDB only) with `npm run dev` for the apps.
-name: steelprocure
+name: procurax
 
 x-hardening: &hardening
   restart: unless-stopped

@@ -35,7 +35,7 @@ describe("protected routes", () => {
   });
 
   it("shows an error state with retry when the API fails", () => {
-    set({ status: "error", user: null, error: "Cannot reach the SteelProcure API." });
+    set({ status: "error", user: null, error: "Cannot reach the ProcuraX API." });
     render(<ProtectedLayout>secret</ProtectedLayout>);
     expect(screen.getByRole("alert")).toHaveTextContent("Cannot reach");
     expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();

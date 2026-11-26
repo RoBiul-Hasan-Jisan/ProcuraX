@@ -11,7 +11,7 @@ from app.inference.demand import forecast_demand
 from app.inference.price import forecast_price
 from app.utils.version import MODEL_VERSION
 
-app = FastAPI(title="SteelProcure ML service", version=MODEL_VERSION)
+app = FastAPI(title="ProcuraX ML service", version=MODEL_VERSION)
 
 
 def require_key(x_internal_key: str | None = Header(default=None)) -> None:
