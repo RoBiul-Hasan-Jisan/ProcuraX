@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronsLeft, ChevronsRight, Hammer } from "lucide-react";
+import { LogoMark } from "@/components/brand/Logo";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
@@ -22,10 +23,10 @@ export function Sidebar({ collapsed, onToggle, onNavigate }: Props) {
   return (
     <aside className={cn("flex h-full flex-col bg-navy-900 text-steel-100 transition-[width]", collapsed ? "w-16" : "w-64")}>
       <div className="flex h-14 items-center gap-2 border-b border-white/10 px-4">
-        <Hammer className="h-5 w-5 shrink-0 text-steel-300" />
+        <LogoMark className="h-8 w-8 shrink-0" />
         {!collapsed && (
           <div className="leading-tight">
-            <div className="text-sm font-semibold text-white">SteelProcure AI</div>
+            <div className="text-sm font-semibold text-white">ProcuraX</div>
             <div className="text-[10px] uppercase tracking-wider text-steel-300">Demo prototype</div>
           </div>
         )}

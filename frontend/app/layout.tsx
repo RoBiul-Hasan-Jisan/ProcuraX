@@ -5,7 +5,7 @@ import { AuthProvider } from "@/features/auth/AuthProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SteelProcure AI",
+  title: "ProcuraX",
   description: "Intelligent Procurement. Smarter Inventory. Better Decisions. (Independent demo prototype)",
 };
 

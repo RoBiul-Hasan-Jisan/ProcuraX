@@ -105,7 +105,7 @@ function UserMenu() {
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false));
   if (!user) return null;
-  const initials = user.displayName.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  const initials = user.displayName.replace(/\[[^\]]*\]/g, "").trim().split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen((o) => !o)} aria-label="User menu" aria-expanded={open}

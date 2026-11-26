@@ -32,7 +32,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       },
     });
   } catch {
-    throw new ApiError(0, "Cannot reach the SteelProcure API. Is the backend running?", "NETWORK");
+    throw new ApiError(0, "Cannot reach the ProcuraX API. Is the backend running?", "NETWORK");
   }
 
   const body = await res.json().catch(() => null);
@@ -52,7 +52,7 @@ async function rawFetch(path: string, init: RequestInit): Promise<Response> {
   try {
     res = await fetch(`${API_URL}${path}`, { ...init, headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` } });
   } catch {
-    throw new ApiError(0, "Cannot reach the SteelProcure API. Is the backend running?", "NETWORK");
+    throw new ApiError(0, "Cannot reach the ProcuraX API. Is the backend running?", "NETWORK");
   }
   if (!res.ok) {
     const body = await res.json().catch(() => null);

@@ -1,4 +1,4 @@
-import { Hammer } from "lucide-react";
+import { LogoMark } from "@/components/brand/Logo";
 import type { ReactNode } from "react";
 
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
@@ -6,9 +6,9 @@ export function AuthCard({ title, subtitle, children }: { title: string; subtitl
     <div className="flex min-h-screen items-center justify-center bg-navy-950 px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 flex items-center gap-3 text-white">
-          <Hammer className="h-7 w-7 text-steel-300" />
+          <LogoMark className="h-10 w-10" />
           <div>
-            <div className="text-lg font-semibold leading-tight">SteelProcure AI</div>
+            <div className="text-lg font-semibold leading-tight">ProcuraX</div>
             <div className="text-xs text-steel-300">Intelligent Procurement. Smarter Inventory. Better Decisions.</div>
           </div>
         </div>

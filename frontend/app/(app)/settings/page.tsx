@@ -10,6 +10,7 @@ import { apiFetch } from "@/lib/api/client";
 import { ROLE_OPTIONS, type AccountStatus, type AppUser, type RoleName } from "@/types";
 import type { Department, Supplier } from "@/types/procurement";
 import { useApi } from "@/hooks/useApi";
+import { DepartmentsPanel } from "@/features/settings/DepartmentsPanel";
 
 interface Draft { role: RoleName | ""; status: AccountStatus; departmentId: string; supplierId: string }
 
@@ -182,6 +183,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
+      {can("departments:manage") && <DepartmentsPanel />}
     </div>
   );
 }

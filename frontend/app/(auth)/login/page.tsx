@@ -17,10 +17,27 @@ const loginSchema = z.object({
 });
 type Values = z.infer<typeof loginSchema>;
 
+// Demo accounts created by `npm run seed` (backend). Prototype/demo use only.
+const DEMO_PASSWORD = "demo@12345";
+const DEMO_ACCOUNTS = [
+  { role: "System Admin", email: "admin@demo.steelprocure.example" },
+  { role: "Procurement Manager", email: "procurement@demo.steelprocure.example" },
+  { role: "Department Manager", email: "deptmanager@demo.steelprocure.example" },
+  { role: "Inventory Officer", email: "inventory@demo.steelprocure.example" },
+  { role: "Finance Officer", email: "finance@demo.steelprocure.example" },
+  { role: "Management", email: "executive@demo.steelprocure.example" },
+  { role: "Supplier 1", email: "supplier@demo.steelprocure.example" },
+  { role: "Supplier 2", email: "supplier2@demo.steelprocure.example" },
+  { role: "Supplier 3", email: "supplier3@demo.steelprocure.example" },
+];
+// Set NEXT_PUBLIC_SHOW_DEMO_LOGINS=false in frontend/.env.local to hide the box.
+const SHOW_DEMO = process.env.NEXT_PUBLIC_SHOW_DEMO_LOGINS !== "false";
+
 export default function LoginPage() {
   useRedirectIfSignedIn();
   const [error, setError] = useState<string | null>(null);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<Values>({
+  const [showPw, setShowPw] = useState(false);
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<Values>({
     resolver: zodResolver(loginSchema),
   });
 
@@ -33,8 +50,14 @@ export default function LoginPage() {
     }
   };
 
+  const fillDemo = (email: string) => {
+    setValue("email", email, { shouldValidate: true });
+    setValue("password", DEMO_PASSWORD, { shouldValidate: true });
+    setError(null);
+  };
+
   return (
-    <AuthCard title="Sign in" subtitle="Use your SteelProcure account.">
+    <AuthCard title="Sign in" subtitle="Use your ProcuraX account.">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <div>
           <label htmlFor="email" className="mb-1 block text-sm font-medium">Email</label>
@@ -59,6 +82,32 @@ export default function LoginPage() {
         <Link href="/forgot-password" className="text-steel-600 hover:underline">Forgot password?</Link>
         <Link href="/register" className="text-steel-600 hover:underline">Create account</Link>
       </div>
+
+      {SHOW_DEMO && (
+        <div className="mt-5 rounded-md border border-dashed border-slate-300 bg-slate-50 p-3 text-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="font-medium text-slate-700">Demo accounts</p>
+            <button type="button" onClick={() => setShowPw((s) => !s)} className="text-xs text-steel-600 hover:underline">
+              {showPw ? "Hide password" : "Show password"}
+            </button>
+          </div>
+          <p className="mb-2 text-xs text-slate-500">
+            Password for all: <code className="rounded bg-white px-1 py-0.5 font-mono">{showPw ? DEMO_PASSWORD : "••••••••••"}</code>
+            {" "}· click a role to fill the form.
+          </p>
+          <ul className="space-y-1">
+            {DEMO_ACCOUNTS.map((a) => (
+              <li key={a.email}>
+                <button type="button" onClick={() => fillDemo(a.email)}
+                  className="flex w-full items-center justify-between rounded px-2 py-1 text-left hover:bg-white">
+                  <span className="font-medium text-slate-700">{a.role}</span>
+                  <span className="truncate pl-2 font-mono text-xs text-slate-500">{a.email}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </AuthCard>
   );
 }
