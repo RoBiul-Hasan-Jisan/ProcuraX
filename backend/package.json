@@ -1,8 +1,8 @@
 {
-  "name": "steelprocure-backend",
+  "name": "procurax-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "SteelProcure AI - Express API (Phase 1 foundation)",
+  "description": "ProcuraX - Express API (Phase 1 foundation)",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
