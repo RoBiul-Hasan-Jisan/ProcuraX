@@ -1,7 +1,20 @@
 /**
- * Synthetic DEMO DATA for SteelProcure AI. All names are fictional; nothing here is real company data.
+ * Synthetic DEMO DATA for ProcuraX. All names are fictional; nothing here is real company data.
  * Kept free of database imports so it can be unit-tested.
  */
+import type { RoleName } from '../src/utils/permissions';
+
+/** Demo login emails per role. Kept here so the seed and the workflow seed agree. */
+export const DEMO_EMAILS: Record<RoleName, string> = {
+  system_admin: 'admin@demo.steelprocure.example',
+  procurement_manager: 'procurement@demo.steelprocure.example',
+  department_manager: 'deptmanager@demo.steelprocure.example',
+  inventory_officer: 'inventory@demo.steelprocure.example',
+  finance_officer: 'finance@demo.steelprocure.example',
+  supplier: 'supplier@demo.steelprocure.example',
+  management: 'executive@demo.steelprocure.example',
+};
+
 export interface DemoCategory { code: string; name: string; description: string }
 export interface DemoMaterial {
   sku: string; name: string; category: string; unit: string; specs: string;

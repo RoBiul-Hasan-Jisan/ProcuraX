@@ -28,8 +28,9 @@ import { StockReservation } from '../src/models/StockReservation';
 import { nextNumber } from '../src/models/Counter';
 import { toD128p } from '../src/domain/money';
 import { DEMO_BOMS, DEMO_PLANS, DEMO_PRODUCTS, DEMO_RESERVATIONS, LEAD_TIME_BY_CATEGORY, SUPPLIER_CAPACITY, consumptionHistory, priceHistory } from './demoData';
+import { seedWorkflow, seedDerived } from './seedWorkflow';
 import { PriceObservation } from '../src/models/PriceObservation';
-import { DEMO_CATEGORIES, DEMO_MATERIALS, DEMO_SUPPLIERS, DEMO_SUPPLIER_USER_LINKS, DEMO_WAREHOUSES, openingStock } from './demoData';
+import { DEMO_EMAILS, DEMO_CATEGORIES, DEMO_MATERIALS, DEMO_SUPPLIERS, DEMO_SUPPLIER_USER_LINKS, DEMO_WAREHOUSES, openingStock } from './demoData';
 
 const DEPARTMENTS = [
   { code: 'PROD', name: 'Production', description: 'Melt shop and rolling mill operations' },
@@ -39,15 +40,6 @@ const DEPARTMENTS = [
   { code: 'FIN', name: 'Finance', description: 'Budgeting and accounts payable' },
 ];
 
-const DEMO_EMAILS: Record<RoleName, string> = {
-  system_admin: 'admin@demo.steelprocure.example',
-  procurement_manager: 'procurement@demo.steelprocure.example',
-  department_manager: 'deptmanager@demo.steelprocure.example',
-  inventory_officer: 'inventory@demo.steelprocure.example',
-  finance_officer: 'finance@demo.steelprocure.example',
-  supplier: 'supplier@demo.steelprocure.example',
-  management: 'executive@demo.steelprocure.example',
-};
 
 // Roles that belong to the Production department so the requisition -> approval chain works out of the box.
 const PRODUCTION_ROLES: RoleName[] = ['department_manager', 'inventory_officer'];
@@ -211,6 +203,10 @@ async function main() {
     console.log(`seeded supplier login for ${link.supplierCode}: ${link.email}`);
   }
   console.log(`\nAll demo users share the password: ${DEMO_PASSWORD}`);
+
+  // Phase 6+: the procure-to-pay workflow at every stage, plus notifications, MRP, risk alerts and forecasts.
+  await seedWorkflow();
+  await seedDerived();
 
   console.log(`Seeded ${DEPARTMENTS.length} departments, ${DEMO_CATEGORIES.length} categories, ${DEMO_MATERIALS.length} materials, ${DEMO_SUPPLIERS.length} suppliers, ${DEMO_WAREHOUSES.length} warehouses (${opened} new opening balances).`);
   await disconnectDatabase();
