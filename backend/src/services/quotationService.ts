@@ -83,7 +83,7 @@ export async function submitQuotation(user: UserContext, rfqId: string, input: Q
   };
 
   // Upsert keyed on (rfq, supplier). The unique index makes concurrent first submissions safe.
-  const existing = await SupplierQuotation.findOneAndUpdate({ rfq: rfqId, supplier: supplierId, status: { $in: ['submitted', 'withdrawn'] } }, { $set: fields }, { new: true });
+  const existing = await SupplierQuotation.findOneAndUpdate({ rfq: rfqId, supplier: supplierId, status: { $in: ['submitted', 'withdrawn'] } }, { $set: fields }, { returnDocument: 'after' });
   if (existing) {
     await audit(user, { action: 'quotation.submitted', entityType: 'SupplierQuotation', entityId: String(existing._id), entityNumber: rfq.number, summary: 'Revised quotation before the deadline', after: { rfq: String(rfqId), supplier: String(supplierId) } });
     return presentQuotation(existing);
@@ -110,7 +110,7 @@ export async function withdrawQuotation(user: UserContext, rfqId: string) {
   const rfq = await RFQ.findById(rfqId).lean();
   if (!rfq || !user.supplierId) throw notFound('Quotation not found');
   if (rfq.status !== 'open' || rfq.deadline.getTime() < Date.now()) throw conflict('Quotations can only be withdrawn while the RFQ is open');
-  const q = await SupplierQuotation.findOneAndUpdate({ rfq: rfqId, supplier: user.supplierId, status: 'submitted' }, { $set: { status: 'withdrawn' } }, { new: true });
+  const q = await SupplierQuotation.findOneAndUpdate({ rfq: rfqId, supplier: user.supplierId, status: 'submitted' }, { $set: { status: 'withdrawn' } }, { returnDocument: 'after' });
   if (!q) throw notFound('No active quotation to withdraw');
   return presentQuotation(q);
 }

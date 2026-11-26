@@ -62,7 +62,7 @@ export async function createMaterial(input: any) {
 
 export async function updateMaterial(id: string, input: any) {
   try {
-    const m = await Material.findByIdAndUpdate(id, { $set: toDoc(input) }, { new: true });
+    const m = await Material.findByIdAndUpdate(id, { $set: toDoc(input) }, { returnDocument: 'after' });
     if (!m) throw notFound('Material not found');
     return getMaterial(id);
   } catch (e: any) {

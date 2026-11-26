@@ -60,7 +60,7 @@ export async function createReceipt(user: UserContext, input: ReceiptInput) {
     const nextStatus = statusAfterReceipt(newLines.map((l: any) => ({ material: String(l.material), quantity: l.quantity, acceptedQty: l.acceptedQty })));
     const gated = await PurchaseOrder.findOneAndUpdate(
       { _id: po._id, receiptSeq: po.receiptSeq, status: { $in: ['issued', 'partially_received'] } },
-      { $set: { lines: newLines, status: nextStatus, lastReceiptAt: now }, $inc: { receiptSeq: 1 } }, { new: true, session },
+      { $set: { lines: newLines, status: nextStatus, lastReceiptAt: now }, $inc: { receiptSeq: 1 } }, { returnDocument: 'after', session },
     );
     if (!gated) throw conflict('This purchase order was changed by someone else. Reload and try again.');
 

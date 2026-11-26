@@ -121,14 +121,14 @@ export async function getRfq(user: UserContext, id: string) {
 
 /** Close bidding early (e.g. all suppliers have quoted). Opens the sealed quotations for comparison. */
 export async function closeRfq(user: UserContext, id: string) {
-  const r = await RFQ.findOneAndUpdate({ _id: id, status: 'open' }, { $set: { status: 'closed' } }, { new: true });
+  const r = await RFQ.findOneAndUpdate({ _id: id, status: 'open' }, { $set: { status: 'closed' } }, { returnDocument: 'after' });
   if (!r) throw conflict('Only an open RFQ can be closed');
   await audit(user, { action: 'rfq.closed', entityType: 'RFQ', entityId: id, entityNumber: r.number, summary: 'Closed bidding early', before: { status: 'open' }, after: { status: 'closed' } });
   return getRfq(user, id);
 }
 
 export async function cancelRfq(user: UserContext, id: string, reason: string) {
-  const r = await RFQ.findOneAndUpdate({ _id: id, status: { $in: ['open', 'closed'] } }, { $set: { status: 'cancelled' } }, { new: true });
+  const r = await RFQ.findOneAndUpdate({ _id: id, status: { $in: ['open', 'closed'] } }, { $set: { status: 'cancelled' } }, { returnDocument: 'after' });
   if (!r) throw conflict('Only an open or closed RFQ (not yet awarded) can be cancelled');
   // The requisition returns to Approved so a new RFQ can be raised.
   await PurchaseRequisition.updateOne({ _id: r.requisition, status: 'RFQ Created' }, { $set: { status: 'Approved', rfq: null } });

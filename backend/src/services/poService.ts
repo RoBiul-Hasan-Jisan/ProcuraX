@@ -89,7 +89,7 @@ export async function createFromRfq(user: UserContext, rfqId: string) {
 export async function issuePurchaseOrder(user: UserContext, id: string) {
   await runInTransaction(async (session) => {
     const now = new Date();
-    const po = await PurchaseOrder.findOneAndUpdate({ _id: id, status: 'draft' }, [{ $set: { status: 'issued', issuedAt: now, expectedDeliveryDate: { $add: [now, { $multiply: ['$deliveryDays', 86_400_000] }] } } }], { new: true, session });
+    const po = await PurchaseOrder.findOneAndUpdate({ _id: id, status: 'draft' }, [{ $set: { status: 'issued', issuedAt: now, expectedDeliveryDate: { $add: [now, { $multiply: ['$deliveryDays', 86_400_000] }] } } }], { returnDocument: 'after', session });
     if (!po) {
       const exists = await PurchaseOrder.findById(id).session(session).lean();
       if (!exists) throw notFound('Purchase order not found');
@@ -108,7 +108,7 @@ export async function issuePurchaseOrder(user: UserContext, id: string) {
 
 /** Draft -> cancelled, or issued with nothing received yet -> cancelled. Receipts make a PO uncancellable. */
 export async function cancelPurchaseOrder(user: UserContext, id: string, reason: string) {
-  const p = await PurchaseOrder.findOneAndUpdate({ _id: id, status: { $in: ['draft', 'issued'] }, receiptSeq: 0 }, { $set: { status: 'cancelled', closeReason: reason } }, { new: true });
+  const p = await PurchaseOrder.findOneAndUpdate({ _id: id, status: { $in: ['draft', 'issued'] }, receiptSeq: 0 }, { $set: { status: 'cancelled', closeReason: reason } }, { returnDocument: 'after' });
   if (!p) {
     const exists = await PurchaseOrder.findById(id).lean();
     if (!exists) throw notFound('Purchase order not found');
@@ -121,7 +121,7 @@ export async function cancelPurchaseOrder(user: UserContext, id: string, reason:
 /** Short-close a partially received order: the supplier will deliver no more. Counts against on-time performance. */
 export async function closePurchaseOrder(user: UserContext, id: string, reason: string) {
   await runInTransaction(async (session) => {
-    const po = await PurchaseOrder.findOneAndUpdate({ _id: id, status: 'partially_received' }, { $set: { status: 'closed', closeReason: reason } }, { new: true, session });
+    const po = await PurchaseOrder.findOneAndUpdate({ _id: id, status: 'partially_received' }, { $set: { status: 'closed', closeReason: reason } }, { returnDocument: 'after', session });
     if (!po) throw conflict('Only a partially received purchase order can be short-closed');
     await recordSupplierPerformance(session, po, false);
     await PurchaseRequisition.updateOne({ _id: po.requisition, status: { $in: ['Ordered', 'Partially Fulfilled'] } }, { $set: { status: 'Completed' } }, { session });

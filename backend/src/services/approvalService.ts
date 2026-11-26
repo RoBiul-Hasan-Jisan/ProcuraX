@@ -64,7 +64,7 @@ export async function decide(user: UserContext, requisitionId: string, action: A
         'steps.$.decidedAt': now, 'steps.$.comment': comment, status: outcome.requestStatus, currentStep: outcome.nextStep,
       },
     },
-    { new: true },
+    { returnDocument: 'after' },
   );
   if (!updated) throw conflict('This approval step was already decided');
 

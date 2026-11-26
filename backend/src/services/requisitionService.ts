@@ -93,7 +93,7 @@ export async function updateRequisition(user: UserContext, id: string, input: Re
   const updated = await PurchaseRequisition.findOneAndUpdate(
     { _id: id, status: { $in: ['Draft', 'Modification Requested'] } },
     { $set: { items, estimatedTotal: toD128(total), requiredDate: input.requiredDate, priority: input.priority, reason: input.reason } },
-    { new: true },
+    { returnDocument: 'after' },
   );
   if (!updated) throw conflict('The requisition changed while you were editing it');
   const snap = (x: any) => ({ estimatedTotal: String(x.estimatedTotal), requiredDate: x.requiredDate, priority: x.priority, reason: x.reason, lines: x.items.length });
@@ -113,7 +113,7 @@ export async function submitRequisition(user: UserContext, id: string) {
 
   // Atomic gate: only one concurrent submit can move the requisition out of its current status.
   const gate = await PurchaseRequisition.findOneAndUpdate(
-    { _id: id, status: from }, { $set: { status: 'Submitted', submittedAt: new Date() } }, { new: true },
+    { _id: id, status: from }, { $set: { status: 'Submitted', submittedAt: new Date() } }, { returnDocument: 'after' },
   );
   if (!gate) throw conflict('This requisition was already submitted');
 
@@ -136,7 +136,7 @@ export async function cancelRequisition(user: UserContext, id: string, reason: s
   if (!isOwner && !privileged) throw forbidden('Only the requester or procurement can cancel this requisition');
   const from = r.status as RequisitionStatus;
   if (!isCancellable(from)) throw conflict(`A requisition in status "${from}" cannot be cancelled`);
-  const gate = await PurchaseRequisition.findOneAndUpdate({ _id: id, status: from }, { $set: { status: 'Cancelled' } }, { new: true });
+  const gate = await PurchaseRequisition.findOneAndUpdate({ _id: id, status: from }, { $set: { status: 'Cancelled' } }, { returnDocument: 'after' });
   if (!gate) throw conflict('The requisition changed, please reload');
   await ApprovalRequest.updateMany({ requisition: id, status: 'pending' }, { $set: { status: 'cancelled' } });
   await ApprovalHistory.create({
