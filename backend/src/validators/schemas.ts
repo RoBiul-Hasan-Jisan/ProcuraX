@@ -213,3 +213,9 @@ export const reportQuery = z.object({
 }).refine((q) => !q.from || !q.to || q.from <= q.to, { message: 'The start date must not be after the end date', path: ['from'] });
 export const reportExportQuery = z.object({ format: z.enum(['csv', 'xlsx', 'pdf']).default('csv') });
 export const reportKeyParam = z.object({ key: z.string().regex(/^[a-z-]{3,40}$/) });
+
+export const updateDepartmentBody = z.object({
+  name: z.string().trim().min(2).max(120).optional(),
+  description: z.string().trim().max(500).optional(),
+  active: z.boolean().optional(),
+}).refine((b) => Object.keys(b).length > 0, { message: 'Nothing to update' });
