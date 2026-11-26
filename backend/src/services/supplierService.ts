@@ -79,7 +79,7 @@ async function getSupplierAsManager(id: string) {
 
 /** Fields a procurement manager may change. Verification/status/history are NOT supplier-editable. */
 export async function updateSupplier(id: string, input: any) {
-  const s = await Supplier.findByIdAndUpdate(id, { $set: input }, { new: true });
+  const s = await Supplier.findByIdAndUpdate(id, { $set: input }, { returnDocument: 'after' });
   if (!s) throw notFound('Supplier not found');
   return getSupplierAsManager(id);
 }
@@ -91,7 +91,7 @@ export async function updateOwnProfile(user: UserContext, input: any) {
   for (const k of ['contactPerson', 'email', 'phone', 'address', 'registrationNumber', 'taxId', 'bankInfo']) {
     if (k in input) allowed[k] = input[k];
   }
-  const s = await Supplier.findByIdAndUpdate(user.supplierId, { $set: allowed }, { new: true });
+  const s = await Supplier.findByIdAndUpdate(user.supplierId, { $set: allowed }, { returnDocument: 'after' });
   if (!s) throw notFound('Supplier not found');
   return getSupplierAsManager(user.supplierId);
 }

@@ -163,7 +163,7 @@ export async function reviewAlert(user: UserContext, id: string, input: { status
   if (!Object.keys(set).length && !Object.keys(push).length) throw badRequest('Nothing to change');
 
   // The gate on the current status stops two reviewers from both moving the same alert.
-  const updated = await RiskAlert.findOneAndUpdate({ _id: id, status: alert.status }, { ...(Object.keys(set).length ? { $set: set } : {}), ...(Object.keys(push).length ? { $push: push } : {}) }, { new: true }).lean();
+  const updated = await RiskAlert.findOneAndUpdate({ _id: id, status: alert.status }, { ...(Object.keys(set).length ? { $set: set } : {}), ...(Object.keys(push).length ? { $push: push } : {}) }, { returnDocument: 'after' }).lean();
   if (!updated) throw conflict('This alert was changed by someone else. Reload and try again.');
   await audit(user, { action: 'risk_alert.reviewed', entityType: 'RiskAlert', entityId: id, entityNumber: alert.number ?? '', summary: input.status ? `Moved ${alert.status} to ${input.status}${note ? `: ${note}` : ''}` : input.assignedTo !== undefined ? 'Changed the reviewer' : `Added a note: ${note}`, before: { status: alert.status }, after: { status: (updated as any).status, assignedTo: (updated as any).assignedToName } });
   return updated;

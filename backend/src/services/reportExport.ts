@@ -15,7 +15,7 @@ const isNum = (v: unknown) => typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v)
 
 export async function toXlsx(r: ReportResult): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'SteelProcure AI (demo)';
+  wb.creator = 'ProcuraX (demo)';
   const ws = wb.addWorksheet(r.title.slice(0, 31).replace(/[\\/?*[\]:]/g, ' '));
   ws.addRow([r.title]).font = { bold: true, size: 14 };
   ws.addRow([`Generated ${r.generatedAt}`]);
@@ -43,12 +43,12 @@ export async function toXlsx(r: ReportResult): Promise<Buffer> {
 
 export function toPdf(r: ReportResult): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36, info: { Title: r.title, Author: 'SteelProcure AI (demo)' } });
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 36, info: { Title: r.title, Author: 'ProcuraX (demo)' } });
     const chunks: Buffer[] = [];
     doc.on('data', (c) => chunks.push(c as Buffer)).on('end', () => resolve(Buffer.concat(chunks))).on('error', reject);
     const W = doc.page.width - 72;
     doc.fontSize(15).font('Helvetica-Bold').text(r.title);
-    doc.fontSize(8).font('Helvetica').fillColor('#555').text(`Generated ${r.generatedAt} · SteelProcure AI demo · synthetic data`);
+    doc.fontSize(8).font('Helvetica').fillColor('#555').text(`Generated ${r.generatedAt} · ProcuraX demo · synthetic data`);
     const f = Object.entries(r.filters);
     if (f.length) doc.text(`Filters: ${f.map(([k, v]) => `${k}=${v}`).join(', ')}`);
     doc.moveDown(0.6).fillColor('#000');

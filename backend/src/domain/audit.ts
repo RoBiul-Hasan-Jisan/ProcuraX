@@ -5,7 +5,7 @@ export const AUDIT_ACTIONS = [
   'purchase_order.created', 'purchase_order.issued', 'purchase_order.cancelled', 'purchase_order.closed',
   'goods_receipt.recorded', 'inventory.adjusted', 'inventory.issued', 'inventory.transferred',
   'invoice.recorded', 'invoice.verified', 'invoice.disputed',
-  'user.updated', 'mrp.run', 'risk_alert.reviewed', 'forecast.generated', 'document.uploaded', 'document.deleted', 'scoring_weights.updated', 'report.exported',
+  'user.updated', 'department.created', 'department.updated', 'mrp.run', 'risk_alert.reviewed', 'forecast.generated', 'document.uploaded', 'document.deleted', 'scoring_weights.updated', 'report.exported',
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

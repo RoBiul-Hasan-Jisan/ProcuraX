@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { env } from '../config/environment';
 import { AppError } from '../utils/apiResponse';
+import { builtinDemandForecast, builtinPriceForecast } from './builtinForecaster';
 
 /** Thrown when the ML service cannot be reached or answers badly. Business operations never depend on it. */
 export class MlUnavailableError extends AppError {
@@ -49,5 +50,21 @@ async function post<T>(path: string, body: unknown, schema: z.ZodType<T>): Promi
   return parsed.data;
 }
 
-export const requestDemandForecast = (points: { date: string; value: number }[], asOf: string) => post('/v1/forecast/demand', { points, asOf }, demandResponse);
-export const requestPriceForecast = (points: { date: string; value: number }[], asOf: string) => post('/v1/forecast/price', { points, asOf }, priceResponse);
+type Pts = { date: string; value: number }[];
+
+/**
+ * Which engine answers. `builtin` (or `auto` with no ML_INTERNAL_KEY) runs the in-process forecaster: free, offline, no extra service.
+ * `auto` with a key tries the Python service first and falls back to builtin if it is unreachable; `service` never falls back.
+ */
+export const useService = () => env.ML_MODE === 'service' || (env.ML_MODE === 'auto' && !!env.ML_INTERNAL_KEY);
+
+async function run<T>(path: string, pts: Pts, asOf: string, schema: z.ZodType<T>, local: (p: Pts, a: string) => any): Promise<T> {
+  if (!useService()) return schema.parse(local(pts, asOf));
+  try { return await post(path, { points: pts, asOf }, schema); }
+  catch (e) {
+    if (env.ML_MODE === 'auto' && e instanceof MlUnavailableError) return schema.parse(local(pts, asOf));
+    throw e;
+  }
+}
+export const requestDemandForecast = (points: Pts, asOf: string) => run('/v1/forecast/demand', points, asOf, demandResponse, builtinDemandForecast);
+export const requestPriceForecast = (points: Pts, asOf: string) => run('/v1/forecast/price', points, asOf, priceResponse, builtinPriceForecast);

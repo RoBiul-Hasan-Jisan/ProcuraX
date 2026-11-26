@@ -25,7 +25,7 @@ export async function createProduct(input: { code: string; name: string; unit: s
   catch (e: any) { if (e?.code === 11000) throw conflict('A product with this code already exists'); throw e; }
 }
 export async function updateProduct(id: string, patch: Record<string, unknown>) {
-  const p = await FinishedProduct.findByIdAndUpdate(id, { $set: patch }, { new: true }).lean();
+  const p = await FinishedProduct.findByIdAndUpdate(id, { $set: patch }, { returnDocument: 'after' }).lean();
   if (!p) throw notFound('Product not found');
   return presentProduct(p);
 }
@@ -101,7 +101,7 @@ export async function updateBom(id: string, input: BomInput) {
   if (!existing) throw notFound('BOM not found');
   if (existing.status !== 'draft') throw conflict('Only a draft BOM can be edited. Create a new version instead.');
   const items = await buildItems(String(existing.product), input.items);
-  const b = await BillOfMaterials.findOneAndUpdate({ _id: id, status: 'draft' }, { $set: { effectiveFrom: input.effectiveFrom, notes: input.notes, items } }, { new: true });
+  const b = await BillOfMaterials.findOneAndUpdate({ _id: id, status: 'draft' }, { $set: { effectiveFrom: input.effectiveFrom, notes: input.notes, items } }, { returnDocument: 'after' });
   if (!b) throw conflict('This BOM is no longer a draft');
   return getBom(id);
 }
@@ -129,12 +129,12 @@ export async function activateBom(id: string) {
   const probe = explodeBom(String(b.product), 1, b.effectiveFrom, [...others.filter((o) => String(o._id) !== id).map(asDomain), asDomain(b)]);
   const circular = probe.issues.find((i) => /Circular/.test(i.message));
   if (circular) throw badRequest(circular.message);
-  const g = await BillOfMaterials.findOneAndUpdate({ _id: id, status: 'draft' }, { $set: { status: 'active' } }, { new: true });
+  const g = await BillOfMaterials.findOneAndUpdate({ _id: id, status: 'draft' }, { $set: { status: 'active' } }, { returnDocument: 'after' });
   if (!g) throw conflict('This BOM was already activated');
   return getBom(id);
 }
 export async function obsoleteBom(id: string) {
-  const g = await BillOfMaterials.findOneAndUpdate({ _id: id, status: 'active' }, { $set: { status: 'obsolete' } }, { new: true });
+  const g = await BillOfMaterials.findOneAndUpdate({ _id: id, status: 'active' }, { $set: { status: 'obsolete' } }, { returnDocument: 'after' });
   if (!g) throw conflict('Only an active BOM can be made obsolete');
   return getBom(id);
 }
@@ -181,7 +181,7 @@ export async function updatePlan(id: string, input: PlanInput) {
   if (!isPlanEditable(existing.status as PlanStatus)) throw conflict(`A ${existing.status.replace('_', ' ')} plan cannot be edited`);
   const product = await FinishedProduct.findById(input.productId).lean();
   if (!product) throw notFound('Product not found');
-  const g = await ProductionPlan.findOneAndUpdate({ _id: id, status: existing.status }, { $set: { product: product._id, unit: product.unit, quantity: toD128(input.quantity), startDate: input.startDate, endDate: input.endDate, notes: input.notes } }, { new: true });
+  const g = await ProductionPlan.findOneAndUpdate({ _id: id, status: existing.status }, { $set: { product: product._id, unit: product.unit, quantity: toD128(input.quantity), startDate: input.startDate, endDate: input.endDate, notes: input.notes } }, { returnDocument: 'after' });
   if (!g) throw conflict('The plan changed while you were editing it');
   return getPlan(id);
 }
@@ -189,7 +189,7 @@ export async function setPlanStatus(id: string, to: PlanStatus) {
   const existing = await ProductionPlan.findById(id).lean();
   if (!existing) throw notFound('Production plan not found');
   if (!canPlanTransition(existing.status as PlanStatus, to)) throw conflict(`A plan cannot move from ${existing.status.replace('_', ' ')} to ${to.replace('_', ' ')}`);
-  const g = await ProductionPlan.findOneAndUpdate({ _id: id, status: existing.status }, { $set: { status: to } }, { new: true });
+  const g = await ProductionPlan.findOneAndUpdate({ _id: id, status: existing.status }, { $set: { status: to } }, { returnDocument: 'after' });
   if (!g) throw conflict('The plan status changed while you were updating it');
   return getPlan(id);
 }
@@ -223,7 +223,7 @@ export async function createReservation(user: UserContext, i: { materialId: stri
   return presentReservation(r.toObject());
 }
 export async function releaseReservation(id: string) {
-  const r = await StockReservation.findOneAndUpdate({ _id: id, status: 'active' }, { $set: { status: 'released', releasedAt: new Date() } }, { new: true }).lean();
+  const r = await StockReservation.findOneAndUpdate({ _id: id, status: 'active' }, { $set: { status: 'released', releasedAt: new Date() } }, { returnDocument: 'after' }).lean();
   if (!r) throw conflict('Reservation not found or already released');
   return presentReservation(r);
 }

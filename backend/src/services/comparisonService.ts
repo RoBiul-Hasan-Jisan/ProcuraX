@@ -116,7 +116,7 @@ export async function awardRfq(user: UserContext, rfqId: string, quotationId: st
   const gate = await RFQ.findOneAndUpdate(
     { _id: rfqId, status: { $in: ['open', 'closed'] } },
     { $set: { status: 'awarded', award: { quotation: quote._id, supplier: quote.supplier, awardedBy: user.id, awardedByName: user.displayName, awardedAt: new Date(), justification: justification.trim(), overrodeTopRank } } },
-    { new: true },
+    { returnDocument: 'after' },
   );
   if (!gate) throw conflict('This RFQ was already awarded');
   await SupplierQuotation.updateOne({ _id: quote._id }, { $set: { status: 'awarded' } });

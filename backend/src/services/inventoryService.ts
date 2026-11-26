@@ -25,11 +25,11 @@ export async function applyMovement(session: ClientSession, m: MovementInput) {
   const delta = signedDelta(m.type, m.quantity, m.adjustmentDirection);
   let level: any;
   if (delta.gt(0)) {
-    level = await StockLevel.findOneAndUpdate({ material: m.material, warehouse: m.warehouse }, { $inc: { quantity: toD128(delta) } }, { upsert: true, new: true, session });
+    level = await StockLevel.findOneAndUpdate({ material: m.material, warehouse: m.warehouse }, { $inc: { quantity: toD128(delta) } }, { upsert: true, returnDocument: 'after', session });
   } else {
     level = await StockLevel.findOneAndUpdate(
       { material: m.material, warehouse: m.warehouse, quantity: { $gte: toD128(delta.abs()) } },
-      { $inc: { quantity: toD128(delta) } }, { new: true, session },
+      { $inc: { quantity: toD128(delta) } }, { returnDocument: 'after', session },
     );
     if (!level) throw conflict('Insufficient stock in this warehouse for the requested quantity');
   }
@@ -56,7 +56,7 @@ export async function updateWarehouse(id: string, patch: { name?: string; locati
     const held = await StockLevel.find({ warehouse: id, quantity: { $gt: toD128(0) } }).limit(1).lean();
     if (held.length) throw conflict('This warehouse still holds stock. Move or issue it before deactivating.');
   }
-  const w = await Warehouse.findByIdAndUpdate(id, { $set: patch }, { new: true }).lean();
+  const w = await Warehouse.findByIdAndUpdate(id, { $set: patch }, { returnDocument: 'after' }).lean();
   if (!w) throw notFound('Warehouse not found');
   return presentWarehouse(w);
 }
