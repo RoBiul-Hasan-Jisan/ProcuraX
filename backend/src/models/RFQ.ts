@@ -4,7 +4,7 @@ const schema = new Schema(
   {
     number: { type: String, required: true, unique: true },
     // One RFQ per approved requisition (partial unique index below enforces it while active)
-    requisition: { type: Schema.Types.ObjectId, ref: 'PurchaseRequisition', required: true, index: true },
+    requisition: { type: Schema.Types.ObjectId, ref: 'PurchaseRequisition', required: true },
     items: [
       {
         material: { type: Schema.Types.ObjectId, ref: 'Material', required: true },

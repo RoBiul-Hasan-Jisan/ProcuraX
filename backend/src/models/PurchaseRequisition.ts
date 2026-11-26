@@ -34,9 +34,11 @@ const schema = new Schema(
     approvedAt: Date,
     rfq: { type: Schema.Types.ObjectId, ref: 'RFQ', default: null },
     isDemoData: { type: Boolean, default: false },
+    externalRef: { type: String, default: undefined }, // stable key for seeded demo records, so re-seeding never duplicates
   },
   { timestamps: true },
 );
+schema.index({ externalRef: 1 }, { unique: true, sparse: true });
 schema.index({ department: 1, status: 1, createdAt: -1 });
 schema.index({ createdAt: -1 });
 export const PurchaseRequisition = model('PurchaseRequisition', schema);

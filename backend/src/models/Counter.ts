@@ -11,7 +11,7 @@ export async function nextNumber(prefix: string, session?: ClientSession, year =
   const doc = await Counter.findOneAndUpdate(
     { _id: `${prefix}-${year}` },
     { $inc: { seq: 1 } },
-    { upsert: true, new: true, session },
+    { upsert: true, returnDocument: 'after', session },
   );
   return `${prefix}-${year}-${String(doc!.seq).padStart(4, '0')}`;
 }
